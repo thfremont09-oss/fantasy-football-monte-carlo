@@ -96,7 +96,7 @@ def load_live(client: SleeperClient, *, season: int | None = None, week: int | N
     state = client.state()
     season = season or int(state.get("league_season") or state.get("season"))
     if week is None:
-        week = int(state.get("display_week") or state.get("week") or 1)
+        week = int(state.get("week") or state.get("display_week") or 1)
         if state.get("season_type") != "regular" or week < 1:
             week = max(week, 1)
             notes.append(f"NFL state is '{state.get('season_type')}', using week {week}")
@@ -196,3 +196,22 @@ def _team_name(user: dict | None, fallback: str) -> str:
     if not user:
         return fallback
     return (user.get("metadata") or {}).get("team_name") or user.get("display_name") or fallback
+
+
+def with_rosters(slate: Slate, my_ids: set[str], opp_ids: set[str] | None = None,
+                 my_name: str = "Your team", opp_name: str | None = "Opponent") -> Slate:
+    """Copy of ``slate`` with the given players tagged as yours / your opponent's."""
+    from dataclasses import replace
+
+    opp_ids = opp_ids or set()
+    players = []
+    for p in slate.players:
+        tags = set()
+        if p.player_id in my_ids:
+            tags.add("mine")
+        if p.player_id in opp_ids:
+            tags.add("opp")
+        players.append(replace(p, tags=tags))
+    return replace(slate, players=players, my_ids=set(my_ids), opp_ids=set(opp_ids),
+                   opp_starters=None, my_name=my_name, opp_name=opp_name if opp_ids else None,
+                   notes=list(slate.notes))

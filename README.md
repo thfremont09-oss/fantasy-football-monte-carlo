@@ -12,13 +12,50 @@ API key needed):
 * and, if you play on Sleeper, **your league's scoring, roster slots, your
   roster and this week's opponent**.
 
-## Install
+## Run it on a Mac (easiest)
+
+1. Get the code. In Terminal:
+
+   ```bash
+   git clone -b claude/affectionate-ptolemy-d4k8cf https://github.com/thfremont09-oss/fantasy-football-monte-carlo.git
+   ```
+
+   (or on GitHub: **Code -> Download ZIP**, then unzip it).
+2. If you don't have Python 3.10+, install it from
+   [python.org](https://www.python.org/downloads/macos/) or with `brew install python`.
+3. In Finder, open the folder and **double-click `start.command`**.
+   The first run sets everything up (a minute or two), then the app opens in your
+   browser at http://localhost:8501. Close the Terminal window to stop it.
+
+   If macOS says it "cannot be opened because it is from an unidentified
+   developer", right-click `start.command` -> **Open** -> **Open** (only needed once).
+
+You can also launch it from Terminal inside the folder:
 
 ```bash
-pip install -r requirements.txt
+./start.command
 ```
 
-## Usage
+## The web app
+
+* **Best possible lineup (any NFL player)**: the top lineup across the whole NFL this week.
+* **My Sleeper league**: enter your league id and username. It uses your league's
+  scoring, lineup slots and roster, finds this week's opponent, and shows your win chance.
+* **Pick my players**: for ESPN/Yahoo/etc. Search and add your players (and
+  optionally your opponent's).
+
+Results show who to start, each player's projection, bad-week/great-week range,
+how often they were in the best lineup across the simulations, a chart of your
+total-points outlook vs. your opponent, and your win probability.
+Toggle **Use demo data** to try it without internet.
+
+## Command line
+
+The same engine runs in the terminal (after `start.command` has set up `.venv`):
+
+```bash
+source .venv/bin/activate
+```
 
 Best possible lineup from every NFL player this week:
 
@@ -58,6 +95,8 @@ Useful options (`python -m ffmc --help` for all):
 | `--seed N` | reproducible results |
 | `--independent` | turn off teammate/game correlation |
 | `--dream` | ignore rosters, use every player |
+
+The UI lives in `app.py` (Streamlit); the engine is in `ffmc/`.
 
 Your league id is the number in the Sleeper web URL:
 `sleeper.com/leagues/<LEAGUE_ID>/team`.

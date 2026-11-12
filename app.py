@@ -164,6 +164,12 @@ st.caption(f"Season {slate.season} · Week {slate.week} · Scoring: {slate.scori
 for note in slate.notes:
     st.caption(f"ℹ️ {note}")
 
+if objective == "win" and (dream or not slate.has_opponent):
+    st.info("**Best chance to beat my opponent** needs an opponent, so this run maximizes expected "
+            "points instead. To get a win chance, pick **My Sleeper league** or add your opponent's "
+            "players under **Pick my players**.")
+    objective = "mean"
+
 params = (demo, mode, slate.season, slate.week, tuple(slate.slots), tuple(sorted(slate.my_ids)),
           tuple(sorted(slate.opp_ids)), objective, n_sims, history_weeks, correlated, seed, scoring)
 if st.button("Simulate", type="primary") or st.session_state.get("params") == params:

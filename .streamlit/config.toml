@@ -6,22 +6,22 @@ gatherUsageStats = false
 
 [theme]
 base = "light"
-primaryColor = "#1d5c4a"
-backgroundColor = "#fbfaf7"
-secondaryBackgroundColor = "#f2f0ea"
-textColor = "#1c1f23"
-linkColor = "#1d5c4a"
-borderColor = "#e2dfd6"
-codeBackgroundColor = "#f4f2ec"
-dataframeHeaderBackgroundColor = "#f2f0ea"
+primaryColor = "#16324f"
+backgroundColor = "#f5f6f8"
+secondaryBackgroundColor = "#eceff3"
+textColor = "#14202e"
+linkColor = "#1d5fa8"
+borderColor = "#dfe3e8"
+codeBackgroundColor = "#f0f2f5"
+dataframeHeaderBackgroundColor = "#eceff3"
 showWidgetBorder = true
 baseRadius = "small"
 baseFontSize = 15
-font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap, sans-serif"
-headingFont = "Source Serif 4:https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600&display=swap"
-codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap, monospace"
-headingFontWeights = [600, 600, 600]
-headingFontSizes = ["2.4rem", "1.6rem", "1.2rem"]
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+headingFont = "Barlow Condensed:https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+headingFontWeights = [700, 700, 600]
+headingFontSizes = ["2.4rem", "1.75rem", "1.3rem"]
 
 [theme.sidebar]
-backgroundColor = "#f2f0ea"
+backgroundColor = "#eceff3"

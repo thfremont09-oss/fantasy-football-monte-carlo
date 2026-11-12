@@ -1,29 +1,16 @@
-# Sports Monte Carlo: Fantasy Football + March Madness
+# Monte Carlo Sports Lab
 
-The web app ("Monte Carlo Sports Lab") has a homepage explaining the models,
-their inputs and their core code, plus two tools reachable from the Menu in
-the top-right corner:
+A website with three simulators that play games out thousands of times with
+real data and tell you which choice comes out ahead most often:
 
-* **Fantasy Football Lineup Optimizer** (`/football`): the best fantasy lineup
-  for this NFL week (below).
-* **March Madness Bracket Simulator** (`/march-madness`): simulates the NCAA
-  men's tournament thousands of times and fills out the best bracket. See
-  [March Madness](#march-madness).
+* **NFL Fantasy Lineups** (`/football`): who to start this week (Sleeper data).
+* **March Madness** (`/march-madness`): title odds and the best bracket (ESPN data).
+* **Fantasy Premier League** (`/fpl`): best XI, bench order and captain for the
+  next gameweek (official FPL API). See [Fantasy Premier League](#fantasy-premier-league).
 
-Pages live in `views/`; the site header, menu and styling are in `app.py`; the
-theme (colors, fonts) is in `.streamlit/config.toml`.
-
-Finds the best fantasy football lineup for the current NFL week by simulating
-the week thousands of times.
-
-It pulls live data from the free [Sleeper API](https://docs.sleeper.com/) (no
-API key needed):
-
-* **projections** for every player this week,
-* **actual stats from recent weeks** to measure how boom/bust each player is,
-* **injury status** (Questionable / Doubtful / Out),
-* and, if you play on Sleeper, **your league's scoring, roster slots, your
-  roster and this week's opponent**.
+The homepage explains each model in plain English. Pages live in `views/`; the
+header, menu and colors are in `app.py` and `ffmc/ui.py`; fonts and base colors
+in `.streamlit/config.toml`.
 
 ## Run it on a Mac (easiest)
 
@@ -185,3 +172,23 @@ rating). Once ESPN posts the official bracket it switches over automatically.
 During the tournament, games already played are locked in. For past seasons it
 scores its own bracket with ESPN's points (10/20/40/80/160/320). For 2026 it
 picked Michigan as the #2 title favorite and scored about 1000 of 1920 points.
+
+## Fantasy Premier League
+
+`views/fpl.py` (UI) and `ffmc/fpl.py` (model), using the official public FPL API:
+
+1. **Team strength** from this season's results: goals scored and conceded
+   compared with the league average, home and away, pulled toward average early
+   in the season.
+2. **Every fixture is played 10,000 times.** Each team's goals are drawn from its
+   expected goals; each goal and assist goes to a player on the pitch in
+   proportion to their xG / xA per 90. Starting chances come from how often each
+   player has started and the injury flag.
+3. **FPL points** follow from that: appearance, goals (GK 10, DEF 6, MID 5, FWD 4),
+   assists, clean sheets, goals conceded, saves, defensive contributions and
+   bonus (3/2/1 to the top three in each simulated match).
+
+The page shows the best XI on a pitch, bench order, captain odds (how often each
+player topped the XI) and win/draw/loss and clean-sheet odds for every fixture.
+Enter your FPL team ID to pick from your own squad. FPL only publishes a squad
+after a deadline passes, so transfers made since the last deadline aren't seen.

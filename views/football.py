@@ -15,9 +15,10 @@ from ffmc.demo import demo_slate
 from ffmc.lineup import DEFAULT_SLOTS
 from ffmc.report import OBJECTIVE_TEXT
 from ffmc.sleeper import SleeperClient, SleeperError
+from ffmc.ui import SPORTS, banner
 
-YOU_COLOR = "#2a78d6"
-OPP_COLOR = "#eb6834"
+YOU_COLOR = SPORTS["nfl"]["color"]
+OPP_COLOR = "#c75a1c"
 BENCH_COLOR = "#a3a29c"
 
 SLOT_TYPES = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"]
@@ -118,7 +119,9 @@ with st.sidebar.expander("Simulation settings"):
     seed = st.number_input("Random seed", 0, 10**6, 42)
 
 # ------------------------------------------------------------ build slate
-st.title("Fantasy Football Lineup Optimizer")
+banner("nfl", "Fantasy Football Lineups",
+       "Your week, simulated thousands of times. Each player's projection, recent form, injury status and matchup "
+       "become a range of outcomes, and the lineup that comes out ahead most often is the one to start.")
 try:
     if demo:
         slate = load_demo(scoring, with_roster=not dream)

@@ -1,148 +1,200 @@
-"""Home page: what the simulators do, what data they use, and the core code."""
+"""Home page: what the simulators do, in plain English, with the core code."""
 
 from __future__ import annotations
 
 import inspect
 
-import pandas as pd
 import streamlit as st
 
-from ffmc import madness, model, simulate
+from ffmc import fpl, madness, simulate
+from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 
-FOOTBALL = "views/football.py"
-MADNESS = "views/march_madness.py"
+FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
 
 
-def section_label(text: str) -> None:
+def eyebrow(text: str) -> None:
     st.markdown(f'<p class="eyebrow">{text}</p>', unsafe_allow_html=True)
 
 
-def source(fn) -> str:
-    return inspect.getsource(fn).rstrip()
+def real_code(*fns) -> None:
+    with st.expander("See the actual code"):
+        for fn in fns:
+            st.code(inspect.getsource(fn).rstrip(), language="python")
 
 
 # --------------------------------------------------------------------- hero
-section_label("Simulation-based sports tools")
-st.markdown('<h1 class="hero">Every game, played ten thousand times.</h1>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="lead">Two tools for the decisions that come with a sports season: who to start in '
-    "your fantasy lineup this week, and how to fill out your March Madness bracket. Neither one "
-    "takes a projection at face value. Each builds its own model from real data, simulates the "
-    "outcome thousands of times, and reports how often each choice actually comes out ahead.</p>",
-    unsafe_allow_html=True)
+stripes = "".join(f'<span style="background:{s["color"]}"></span>' for s in SPORTS.values())
+st.markdown(f"""
+<style>
+.hero {{ background: repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 1px, transparent 1px 80px),
+  linear-gradient(135deg, {NAVY} 0%, #17324f 100%); border-radius: 12px; padding: 2.4rem 2rem 2rem; color: #fff;
+  margin-bottom: 1.6rem; }}
+.hero .eyebrow {{ color: #f2b134; }}
+.hero h1 {{ color: #fff; font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1; margin: .3rem 0 .9rem; padding: 0;
+  text-transform: uppercase; font-weight: 700; max-width: 16ch; }}
+.hero p {{ color: #c9d3df; font-size: 1.1rem; line-height: 1.6; max-width: 60ch; margin: 0; }}
+.hero .bar {{ display: flex; gap: 6px; margin-top: 1.4rem; }}
+.hero .bar span {{ height: 6px; width: 64px; border-radius: 3px; }}
+.hero .facts {{ display: flex; gap: 2.2rem; flex-wrap: wrap; margin-top: 1.4rem; }}
+.hero .facts b {{ display: block; font-family: "Barlow Condensed", sans-serif; font-size: 1.9rem; color: #fff; line-height: 1; }}
+.hero .facts small {{ color: #9fb0c3; text-transform: uppercase; letter-spacing: .1em; font-size: .7rem; font-weight: 600; }}
+</style>
+<div class="hero">
+  <p class="eyebrow">Simulation-based sports analytics</p>
+  <h1>Every game, played ten thousand times.</h1>
+  <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
+  out thousands of times with real data, then tell you which choice comes out ahead most often.</p>
+  <div class="facts">
+    <div><b>3</b><small>Sports</small></div>
+    <div><b>10,000</b><small>Simulations per run</small></div>
+    <div><b>Live</b><small>Data, refreshed hourly</small></div>
+  </div>
+  <div class="bar">{stripes}</div>
+</div>
+""", unsafe_allow_html=True)
 
-c1, c2 = st.columns(2, gap="medium")
-with c1, st.container(border=True):
-    section_label("NFL · Weekly")
-    st.subheader("Fantasy Football Lineup Optimizer")
-    st.write("Pick the lineup with the best expected score or the best chance of beating this "
-             "week's opponent. Connect a Sleeper league, or enter a roster from any site.")
-    with st.container(key="card_link_football"):
-        st.page_link(FOOTBALL, label="Open the lineup optimizer", icon=":material/arrow_forward:", width="stretch")
-with c2, st.container(border=True):
-    section_label("NCAA Men's Tournament · March")
-    st.subheader("March Madness Bracket Simulator")
-    st.write("Title odds for every team, round-by-round chances and a complete bracket. It shows a "
-             "projected field until Selection Sunday, then switches to the official bracket.")
-    with st.container(key="card_link_madness"):
-        st.page_link(MADNESS, label="Open the bracket simulator", icon=":material/arrow_forward:", width="stretch")
+# ------------------------------------------------------------------- tools
+cards = [
+    ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
+     "Who to start this week. Connect your Sleeper league or enter your roster from any site, and see "
+     "your chance of beating this week's opponent."),
+    ("ncaa", "NCAA · March", "March Madness Bracket", MADNESS, "Open bracket simulator",
+     "Title odds for every team and a complete bracket to fill out. Shows a projected field until "
+     "Selection Sunday, then the real bracket."),
+    ("epl", "Premier League · Every gameweek", "Fantasy Premier League", FPL, "Open FPL team picker",
+     "Your best XI, bench order and captain. Enter your FPL team ID, or see the best XI from every player."),
+]
+for col, (sport, label, title, path, cta, text) in zip(st.columns(3, gap="medium"), cards):
+    with col, st.container(key=f"card_{sport}"):
+        st.markdown(card_top(sport, label), unsafe_allow_html=True)
+        st.subheader(title)
+        st.markdown(f'<p class="card-text">{text}</p>', unsafe_allow_html=True)
+        with st.container(key=f"cardlink_{sport}"):
+            st.page_link(path, label=cta, icon=":material/arrow_forward:", width="stretch")
 
-# ------------------------------------------------------------- how it works
-st.divider()
-section_label("Method")
-st.header("How a simulation works")
+# ------------------------------------------------------------ how it works
+st.write("")
+eyebrow("How it works")
+st.header("Three steps, every sport")
 steps = [
-    ("1  Estimate", "Turn raw data into a model: an expected score and a range for each player, or a "
-                    "strength rating for each team."),
-    ("2  Simulate", "Draw thousands of random outcomes from that model, including the things that "
-                    "move together: a quarterback and his receivers, a defense and the offense it faces."),
-    ("3  Decide", "Count the results. Choose the lineup or bracket that wins most often, and report "
-                  "the odds instead of a single guess."),
+    ("1. Build a picture", "Start from real data: projections, recent games, injuries, team strength. Turn it "
+                           "into a realistic range for each player or team, not just one number."),
+    ("2. Play it out", "Let the computer play the games thousands of times. Some runs a star has a huge day, "
+                       "some runs they're quiet, and some runs the underdog wins. Like real life."),
+    ("3. Count the wins", "Look at all those results and count. The lineup, bracket or captain that comes "
+                          "out on top most often is your best bet, and you see the odds behind it."),
 ]
 for col, (title, text) in zip(st.columns(3, gap="medium"), steps):
-    col.markdown(f"**{title}**")
-    col.write(text)
+    col.markdown(f'<div class="step"><b>{title}</b><p>{text}</p></div>', unsafe_allow_html=True)
 
-# ----------------------------------------------------------------- football
-st.divider()
-section_label("Fantasy football")
-st.header("The lineup model")
-st.write("Data refreshes hourly from Sleeper's public API. The current NFL week is detected "
-         "automatically.")
+# -------------------------------------------------------------- what's used
+st.write("")
+eyebrow("The inputs")
+st.header("What each simulator looks at")
+inputs = {
+    "nfl": ["This week's projected stats for every player", "Points scored in each of the last 6 games",
+            "Injury report (questionable players sit out about 1 week in 5)", "Who plays who, so teammates and "
+            "opponents rise and fall together", "Your league's scoring and lineup rules"],
+    "ncaa": ["The final score of every Division I game this season", "Whether each game was home, away or "
+             "neutral", "Last season's ratings, early in the year", "The official bracket and results once "
+             "the tournament starts"],
+    "epl": ["Every club's goals scored and conceded this season", "Each player's expected goals (xG) and "
+            "expected assists (xA) per 90 minutes", "How often each player starts, and their injury status",
+            "Saves, defensive actions and FPL's scoring rules", "This gameweek's fixtures, including doubles and blanks"],
+}
+for col, (sport, items) in zip(st.columns(3, gap="medium"), inputs.items()):
+    s = SPORTS[sport]
+    col.markdown(f'<p class="eyebrow" style="color:{s["color"]}">{s["label"]}</p>' +
+                 "".join(f"<p style='margin:.35rem 0;border-left:3px solid {s['color']};padding-left:.6rem'>{i}</p>"
+                         for i in items), unsafe_allow_html=True)
 
-st.subheader("What goes in")
-st.dataframe(pd.DataFrame([
-    ["Weekly stat projections", "Sleeper", f"Expected points ({model.PROJECTION_WEIGHT:.0%} of the estimate)"],
-    ["Points in each of the last 6 games", "Sleeper", f"Recent form ({1 - model.PROJECTION_WEIGHT:.0%}) "
-                                                      "and how much the player's scores swing"],
-    ["Injury report", "Sleeper", "Chance the player is active (Questionable "
-                                 f"{model.PLAY_PROBABILITY['Questionable']:.0%}, Doubtful "
-                                 f"{model.PLAY_PROBABILITY['Doubtful']:.0%}, Out 0%)"],
-    ["Team and opponent", "Sleeper", "Which players' outcomes move together"],
-    ["League scoring and lineup slots", "Your Sleeper league, or PPR / Half / Standard / ESPN",
-     "Points per stat and which positions can fill each slot"],
-], columns=["Input", "Source", "How it's used"]), hide_index=True, width="stretch")
+# --------------------------------------------------------------- the code
+st.write("")
+eyebrow("Under the hood")
+st.header("The idea, in a few lines of code")
+st.write("Simplified versions of what each simulator does, written to be read by anyone. "
+         "The real code is one click away under each one.")
+t_nfl, t_ncaa, t_epl = st.tabs(["NFL lineups", "March Madness", "Premier League"])
 
-st.subheader("Assumptions by position")
-rows = []
-for pos, (w_team, w_game, w_opp) in simulate.SHARED_LUCK.items():
-    rows.append([pos, f"{model.POSITION_CV[pos]:.0%}", f"{w_team ** 2:.0%}", f"{w_game ** 2:.0%}",
-                 f"{w_opp ** 2:.0%}" + (" (inverse)" if w_opp < 0 else ""), f"{model.POSITION_FLOOR[pos]:+.0f}"])
-st.dataframe(pd.DataFrame(rows, columns=[
-    "Position", "Typical weekly swing", "Shared with own offense", "Shared with game",
-    "Shared with opposing offense", "Score floor"]), hide_index=True, width="stretch")
-st.caption("Typical weekly swing is the starting estimate of a player's standard deviation as a share of "
-           "the player's expected points, blended with the player's own recent games. The shared columns are the "
-           "share of a player's week-to-week variation that comes from each common factor.")
+with t_nfl:
+    st.code('''# Play this week 10,000 times
+for week in range(10_000):
+    for player in your_players:
+        # Start from the projection, then roll the dice:
+        # most weeks land near it, some are huge, some are duds.
+        points[player] = player.projection * random_good_or_bad_day()
 
-st.subheader("The simulation")
-st.code(source(simulate.simulate), language="python")
-with st.expander("How random draws become fantasy points"):
-    st.code(source(simulate.luck_to_points), language="python")
+        # Teammates share luck: when a QB has a big day,
+        # their receivers usually do too.
+        points[player] *= team_luck[player.team]
 
-# -------------------------------------------------------------- march madness
-st.divider()
-section_label("March Madness")
-st.header("The bracket model")
-st.write("Every Division I game of the season, from ESPN's public scoreboard, refreshed during the day.")
+        # Listed as questionable? Some weeks they don't play.
+        if player.questionable and chance(20%):
+            points[player] = 0
 
-st.subheader("What goes in")
-st.dataframe(pd.DataFrame([
-    ["Final score of every Division I game", "ESPN", "Team power ratings (least squares on scoring margin)"],
-    ["Home, away or neutral site", "ESPN", "Separates home-court advantage from team strength"],
-    ["Last season's ratings", "ESPN", "Starting point early in the season, phased out as games are played"],
-    ["Official bracket, seeds and results", "ESPN", "Field and matchups; games already played are locked in"],
-], columns=["Input", "Source", "How it's used"]), hide_index=True, width="stretch")
+    # Which lineup would have scored the most this time?
+    remember(best_lineup(points))
 
-st.subheader("From ratings to win chances")
-st.write(f"A single game's margin varies by about {madness.GAME_SD:.0f} points around the rating difference.")
-gaps = [0, 3, 6, 11, 15, 20]
-st.dataframe(pd.DataFrame({
-    "Rating difference": [f"{g} pts" for g in gaps],
-    "Better team wins": [f"{madness.win_probability(g, 0):.0%}" for g in gaps],
-}).set_index("Rating difference").T, width="stretch")
+# Start the lineup that came out on top most often.''', language="python")
+    real_code(simulate.simulate, simulate.luck_to_points)
 
-st.subheader("The code")
-st.code(source(madness.fit_ratings), language="python")
-st.code(source(madness.simulate_bracket), language="python")
+with t_ncaa:
+    st.code('''# Step 1: rate every team from this season's scores.
+# "A beat B by 12" -> A is about 12 points better than B
+# (after allowing for home court). Repeat for thousands of games.
+ratings = rate_teams(every_score_this_season)
 
-# ---------------------------------------------------------------- track record
-st.divider()
-section_label("Track record")
+# Step 2: play the whole tournament 10,000 times.
+for tournament in range(10_000):
+    teams_left = the_64_teams
+    while more_than_one(teams_left):
+        for team_a, team_b in this_rounds_games(teams_left):
+            # a team 11 points better wins about 84% of the time
+            chance_a_wins = win_chance(ratings[team_a] - ratings[team_b])
+            winner = team_a if random() < chance_a_wins else team_b
+        teams_left = this_rounds_winners
+    remember(champion = teams_left[0])
+
+# Title odds = how often each team ended up as champion.''', language="python")
+    real_code(madness.fit_ratings, madness.simulate_bracket)
+
+with t_epl:
+    st.code('''# Play this gameweek 10,000 times
+for gameweek in range(10_000):
+    for match in this_gameweeks_fixtures:
+        # How many goals? Depends on one side's attack vs. the other's defence.
+        home_goals = random_goals(expected = home_attack * away_defence)
+        away_goals = random_goals(expected = away_attack * home_defence)
+
+        # Who scored? Players with higher xG get more of the goals,
+        # but only if they're on the pitch that day.
+        for goal in home_goals:
+            scorer = pick_a_player(more_likely_if = high_xG)
+            points[scorer] += goal_points[scorer.position]   # 4, 5, 6 or 10
+
+        # Defenders and keepers get a clean sheet if the other side scored 0.
+        # Then: assists, saves, defensive actions, bonus for the top 3.
+
+    remember(best_xi(points), top_scorer(points))
+
+# Captain = the player who topped the XI most often.''', language="python")
+    real_code(fpl.simulate, fpl.player_points)
+
+# ------------------------------------------------------------ track record
+st.write("")
+eyebrow("Track record")
 st.header("How it has done")
-st.write("Both tools can be run on past weeks and past tournaments, using only the data that "
-         "existed before the games.")
+st.write("Each tool can be rerun on past weeks and tournaments using only what was known beforehand.")
 m1, m2, m3 = st.columns(3, gap="medium")
 m1.metric("NFL 2026, week 9: optimizer's lineup", "186.7 pts", "+8.2 vs. its own projection")
 m2.metric("Best lineup possible in hindsight", "260.9 pts")
 m2.caption("The optimizer's lineup captured 72% of it.")
-m3.metric("2026 tournament bracket (ESPN scoring)", "≈1,000 / 1,920")
+m3.metric("2026 March Madness bracket (ESPN scoring)", "≈1,000 / 1,920")
 m3.caption("Champion Michigan was its #2 title pick before the tournament.")
-st.caption("Single results, not long-run averages. Run the football backtest for any completed week with "
-           "python -m ffmc --backtest --week N.")
+st.caption("Single results, not long-run averages.")
 
-# --------------------------------------------------------------------- footer
+# ------------------------------------------------------------------- footer
 st.divider()
-st.caption("Data: Sleeper public API (NFL) and ESPN public scoreboard (college basketball). "
-           "Not affiliated with Sleeper, ESPN, the NFL or the NCAA. For entertainment; no outcome is "
-           "guaranteed.")
+st.caption("Data: Sleeper public API (NFL), ESPN public scoreboard (college basketball) and the official "
+           "Fantasy Premier League API. Not affiliated with Sleeper, ESPN, the NFL, the NCAA or the Premier "
+           f"League. For entertainment; no outcome is guaranteed. Version {APP_VERSION}.")

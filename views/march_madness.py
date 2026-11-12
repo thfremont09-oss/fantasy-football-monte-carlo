@@ -12,8 +12,9 @@ import streamlit as st
 from ffmc import madness as mm
 from ffmc.espn import ESPNClient
 from ffmc.http import APIError
+from ffmc.ui import SPORTS, banner
 
-BAR_COLOR = "#2a78d6"
+BAR_COLOR = SPORTS["ncaa"]["color"]
 
 
 @st.cache_data(ttl=1800, show_spinner="Downloading this season's college basketball scores...")
@@ -43,7 +44,9 @@ with st.sidebar.expander("Simulation settings"):
     seed = st.number_input("Random seed", 0, 10**6, 42, key="mm_seed")
 
 # ------------------------------------------------------------------ data
-st.title("March Madness Bracket Simulator")
+banner("ncaa", "March Madness",
+       "The whole 64-team bracket, played out thousands of times. Team ratings come from every Division I "
+       "score this season; each game is a weighted coin flip based on the gap between two teams.")
 try:
     bracket = load(season, dt.date.today())
 except APIError as exc:
@@ -72,13 +75,14 @@ teams = bracket.teams
 fav = int(np.argmax(odds[:, 5]))
 champ = picks[5][0]
 cols = st.columns(3)
-cols[0].metric("Title favorite", teams[fav].name, f"{100 * odds[fav, 5]:.0f}% to win it all", delta_color="off")
+cols[0].metric("Title favorite", teams[fav].name)
+cols[0].caption(f"{100 * odds[fav, 5]:.0f}% to win it all")
 cols[1].metric("Bracket's champion pick", label(teams[champ]))
 if bracket.results:
     earned, possible = mm.bracket_score(picks, bracket.results)
     if possible:
-        cols[2].metric("Bracket score (ESPN points)", f"{earned} / {possible}",
-                       f"{100 * earned / possible:.0f}% of available points", delta_color="off")
+        cols[2].metric("Bracket score (ESPN points)", f"{earned} / {possible}")
+        cols[2].caption(f"{100 * earned / possible:.0f}% of available points")
     if bracket.complete:
         st.caption(f"Actual champion: **{label(teams[bracket.results[5][0]])}**")
 

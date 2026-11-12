@@ -1,4 +1,10 @@
-# Fantasy Football Monte Carlo Lineup Optimizer
+# Sports Monte Carlo: Fantasy Football + March Madness
+
+The web app has two tabs:
+
+* **Football**: the best fantasy lineup for this NFL week (below).
+* **March Madness**: simulates the NCAA men's tournament thousands of times
+  and fills out the best bracket. See [March Madness](#march-madness).
 
 Finds the best fantasy football lineup for the current NFL week by simulating
 the week thousands of times.
@@ -149,3 +155,26 @@ python -m pytest
 * Kickers and defenses use Sleeper's pre-computed PPR/half/standard totals
   even in custom-scoring leagues.
 * IDP slots aren't supported (they're skipped with a note).
+
+## March Madness
+
+`views/march_madness.py` (UI) and `ffmc/madness.py` (model) use the same
+Monte Carlo idea as the football side, with data from ESPN's free public
+scoreboard (`ffmc/espn.py`):
+
+1. **Team ratings.** Every Division I game this season is fit with least
+   squares: `home score - away score = rating_home - rating_away + home edge`.
+   A rating of +20 means 20 points better than an average team on a neutral
+   court. Early in the season, ratings lean on last season's.
+2. **Win chance.** A game's margin swings by about 11 points, so a team rated
+   11 points better wins about 84% of the time (the "Upset level" setting).
+3. **Simulation.** The 64-team bracket is played out 10,000+ times; each game is
+   a weighted coin flip. The tab shows each team's chance of reaching every
+   round, title odds, a head-to-head calculator, and the best bracket (each game
+   goes to the team that advanced further more often).
+
+Before Selection Sunday the tab shows a projected field (the top 64 teams by
+rating). Once ESPN posts the official bracket it switches over automatically.
+During the tournament, games already played are locked in. For past seasons it
+scores its own bracket with ESPN's points (10/20/40/80/160/320). For 2026 it
+picked Michigan as the #2 title favorite and scored about 1000 of 1920 points.

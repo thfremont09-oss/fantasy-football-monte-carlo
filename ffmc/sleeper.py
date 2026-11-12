@@ -13,54 +13,24 @@ Endpoints used:
 
 from __future__ import annotations
 
-import hashlib
-import json
-import os
-import time
-from pathlib import Path
 from typing import Any
 
-import requests
+from .http import APIError, CachedJSON
 
 BASE_URL = "https://api.sleeper.app"
 POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
 
 DAY = 24 * 3600
 
-
-class SleeperError(RuntimeError):
-    pass
+SleeperError = APIError
 
 
 class SleeperClient:
-    def __init__(self, cache_dir: str | os.PathLike | None = ".ffmc_cache", timeout: float = 30.0):
-        self.cache_dir = Path(cache_dir) if cache_dir else None
-        if self.cache_dir:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers["User-Agent"] = "ffmc-monte-carlo/0.1"
+    def __init__(self, cache_dir=".ffmc_cache", timeout: float = 30.0):
+        self.http = CachedJSON(cache_dir, timeout)
 
-    # ------------------------------------------------------------------ http
     def _get(self, path: str, params: list[tuple[str, str]] | None = None, ttl: float = 0) -> Any:
-        url = BASE_URL + path
-        cache_file = None
-        if self.cache_dir and ttl > 0:
-            key = hashlib.sha1((url + json.dumps(params or [])).encode()).hexdigest()
-            cache_file = self.cache_dir / f"{key}.json"
-            if cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
-                with cache_file.open() as f:
-                    return json.load(f)
-        try:
-            resp = self.session.get(url, params=params, timeout=self.timeout)
-            resp.raise_for_status()
-            data = resp.json()
-        except (requests.RequestException, ValueError) as exc:
-            raise SleeperError(f"GET {url} failed: {exc}") from exc
-        if cache_file is not None:
-            with cache_file.open("w") as f:
-                json.dump(data, f)
-        return data
+        return self.http.get(BASE_URL + path, params, ttl)
 
     # ------------------------------------------------------------- endpoints
     def state(self) -> dict:

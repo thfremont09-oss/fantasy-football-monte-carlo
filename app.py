@@ -27,7 +27,6 @@ choice = st.segmented_control("Choose a sport", list(PAGES), default=current, re
 if choice != current:
     st.switch_page(PAGES[choice])
 
-page.run()
-
-st.divider()
 st.caption(f"Version {APP_VERSION}")
+
+page.run()

@@ -67,7 +67,7 @@ def headshot(pid: str, live: bool) -> str | None:
 
 
 # --------------------------------------------------------------- sidebar
-st.sidebar.title("🏈 Lineup Simulator")
+st.sidebar.header("Lineup settings")
 demo = st.sidebar.toggle("Use demo data (offline)", value=False,
                          help="Fake players, no internet needed. Turn off for real NFL data from Sleeper.")
 
@@ -118,7 +118,7 @@ with st.sidebar.expander("Simulation settings"):
     seed = st.number_input("Random seed", 0, 10**6, 42)
 
 # ------------------------------------------------------------ build slate
-st.title("Fantasy Football Lineup Simulator")
+st.title("Fantasy Football Lineup Optimizer")
 try:
     if demo:
         slate = load_demo(scoring, with_roster=not dream)
@@ -156,7 +156,7 @@ if mode == "Pick my players":
 st.caption(f"Season {slate.season} · Week {slate.week} · Scoring: {slate.scoring_name} · "
            f"Data: {'synthetic demo' if demo else 'live from Sleeper (projections, recent stats, injuries)'}")
 for note in slate.notes:
-    st.caption(f"ℹ️ {note}")
+    st.caption(note)
 
 if objective == "win" and (dream or not slate.has_opponent):
     st.info("**Best chance to beat my opponent** needs an opponent, so this run maximizes expected "

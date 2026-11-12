@@ -33,7 +33,7 @@ def label(t: mm.Team) -> str:
 # ---------------------------------------------------------------- sidebar
 current = mm.current_season()
 seasons = [s for s in range(current, 2018, -1) if s != 2020]   # no tournament in 2020
-st.sidebar.title("🏀 Bracket Simulator")
+st.sidebar.header("Bracket settings")
 season = st.sidebar.selectbox("Tournament", seasons,
                               format_func=lambda s: f"{s} (this season)" if s == current else str(s))
 with st.sidebar.expander("Simulation settings"):
@@ -43,7 +43,7 @@ with st.sidebar.expander("Simulation settings"):
     seed = st.number_input("Random seed", 0, 10**6, 42, key="mm_seed")
 
 # ------------------------------------------------------------------ data
-st.title("March Madness Simulator")
+st.title("March Madness Bracket Simulator")
 try:
     bracket = load(season, dt.date.today())
 except APIError as exc:
@@ -63,7 +63,7 @@ else:
     st.info(f"**Official {season} bracket.**")
 for note in bracket.notes:
     if not note.startswith("Projected field"):
-        st.caption(f"ℹ️ {note}")
+        st.caption(note)
 
 odds, picks = simulate(bracket, n_sims, int(seed), float(game_sd))
 teams = bracket.teams
@@ -100,13 +100,13 @@ with tab_odds:
 # -------------------------------------------------------------- best bracket
 def mark(r: int, slot: int, pick: int) -> str:
     if r < len(bracket.results) and bracket.results[r][slot] >= 0:
-        return " ✅" if bracket.results[r][slot] == pick else " ❌"
+        return "  ✓" if bracket.results[r][slot] == pick else "  ✗"
     return ""
 
 
 with tab_bracket:
     st.caption("In every game, the bracket advances whichever team won that round more often in the "
-               "simulations." + (" ✅/❌ = right/wrong." if bracket.results else ""))
+               "simulations." + (" ✓ = correct pick, ✗ = wrong pick." if bracket.results else ""))
     region_cols = st.columns(2)
     for ri, region in enumerate(bracket.regions):
         rows = {}
@@ -124,7 +124,7 @@ with tab_bracket:
     for g in range(2):
         a, b, w = f4[2 * g], f4[2 * g + 1], picks[4][g]
         st.write(f"{label(teams[a])} vs {label(teams[b])} → **{teams[w].name}**{mark(4, g, w)}")
-    st.write(f"🏆 Champion: **{label(teams[champ])}**{mark(5, 0, champ)}")
+    st.write(f"Champion: **{label(teams[champ])}**{mark(5, 0, champ)}")
 
 # ------------------------------------------------------------------ table
 with tab_teams:

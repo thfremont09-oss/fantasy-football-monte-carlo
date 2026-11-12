@@ -1,10 +1,17 @@
 # Sports Monte Carlo: Fantasy Football + March Madness
 
-The web app has two tabs:
+The web app ("Monte Carlo Sports Lab") has a homepage explaining the models,
+their inputs and their core code, plus two tools reachable from the Menu in
+the top-right corner:
 
-* **Football**: the best fantasy lineup for this NFL week (below).
-* **March Madness**: simulates the NCAA men's tournament thousands of times
-  and fills out the best bracket. See [March Madness](#march-madness).
+* **Fantasy Football Lineup Optimizer** (`/football`): the best fantasy lineup
+  for this NFL week (below).
+* **March Madness Bracket Simulator** (`/march-madness`): simulates the NCAA
+  men's tournament thousands of times and fills out the best bracket. See
+  [March Madness](#march-madness).
+
+Pages live in `views/`; the site header, menu and styling are in `app.py`; the
+theme (colors, fonts) is in `.streamlit/config.toml`.
 
 Finds the best fantasy football lineup for the current NFL week by simulating
 the week thousands of times.

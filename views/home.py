@@ -37,13 +37,15 @@ with c1, st.container(border=True):
     st.subheader("Fantasy Football Lineup Optimizer")
     st.write("Pick the lineup with the best expected score or the best chance of beating this "
              "week's opponent. Connect a Sleeper league, or enter a roster from any site.")
-    st.page_link(FOOTBALL, label="Open the lineup optimizer", icon=":material/arrow_forward:")
+    with st.container(key="card_link_football"):
+        st.page_link(FOOTBALL, label="Open the lineup optimizer", icon=":material/arrow_forward:", width="stretch")
 with c2, st.container(border=True):
     section_label("NCAA Men's Tournament · March")
     st.subheader("March Madness Bracket Simulator")
     st.write("Title odds for every team, round-by-round chances and a complete bracket. It shows a "
              "projected field until Selection Sunday, then switches to the official bracket.")
-    st.page_link(MADNESS, label="Open the bracket simulator", icon=":material/arrow_forward:")
+    with st.container(key="card_link_madness"):
+        st.page_link(MADNESS, label="Open the bracket simulator", icon=":material/arrow_forward:", width="stretch")
 
 # ------------------------------------------------------------- how it works
 st.divider()

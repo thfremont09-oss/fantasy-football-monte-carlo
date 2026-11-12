@@ -2,6 +2,8 @@
 
 import streamlit as st
 
+APP_VERSION = "2026-11-12b"  # bump on each release so you can tell which version is live
+
 st.set_page_config(page_title="Sports Monte Carlo", page_icon="🎲", layout="wide")
 
 PAGES = {
@@ -26,3 +28,6 @@ if choice != current:
     st.switch_page(PAGES[choice])
 
 page.run()
+
+st.divider()
+st.caption(f"Version {APP_VERSION}")

@@ -203,3 +203,16 @@ def test_resolve_names():
     ids, notes = resolve_names(["joe quarterback", "Rex Runner", "BBB", "Willy Widout", "Nobody"], db, set(db))
     assert ids == ["1", "2", "BBB", "3"]
     assert any("Nobody" in n for n in notes)
+
+
+def test_backtest_with_fake_api():
+    from ffmc.backtest import render_backtest, run_backtest
+    bt = run_backtest(FakeClient(), 2026, 9, slots=["QB", "RB", "WR", "TE"], n_sims=500, seed=0)
+    assert [r.name for r in bt.predicted] == ["Joe Quarterback", "Rex Runner Jr.", "Willy Wideout", "Ted Tightend"]
+    assert len(bt.actual_best) == 4 and bt.best_total >= bt.predicted_total
+    assert "ACTUAL BEST LINEUP" in render_backtest(bt)
+
+
+def test_espn_scoring_costs_two_per_interception():
+    stats = {"pass_yd": 250, "pass_int": 2, "pts_ppr": 8.0}
+    assert fantasy_points(stats, PRESETS["espn"], "QB", "espn") == pytest.approx(10 - 4)

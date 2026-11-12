@@ -26,6 +26,8 @@ PRESETS: dict[str, dict[str, float]] = {
     "std": STANDARD,
     "half": {**STANDARD, "rec": 0.5},
     "ppr": {**STANDARD, "rec": 1.0},
+    # ESPN's default PPR league: same as PPR but interceptions cost 2.
+    "espn": {**STANDARD, "rec": 1.0, "pass_int": -2},
 }
 
 # Sleeper pre-computes these totals in every projection/stat row.
@@ -34,7 +36,7 @@ PRESET_POINTS_KEY = {"std": "pts_std", "half": "pts_half_ppr", "ppr": "pts_ppr"}
 
 def closest_preset(scoring: dict[str, float]) -> str:
     rec = float(scoring.get("rec", 0.0))
-    return min(PRESETS, key=lambda k: abs(PRESETS[k]["rec"] - rec))
+    return min(PRESET_POINTS_KEY, key=lambda k: abs(PRESETS[k]["rec"] - rec))
 
 
 def fantasy_points(stats: dict, scoring: dict[str, float], position: str | None = None,
@@ -47,7 +49,7 @@ def fantasy_points(stats: dict, scoring: dict[str, float], position: str | None 
       that don't map cleanly onto bucketed scoring keys.
     * Otherwise compute ``sum(stat * weight)`` with the league's settings.
     """
-    if preset:
+    if preset in PRESET_POINTS_KEY:
         key = PRESET_POINTS_KEY[preset]
         if key in stats:
             return float(stats[key])

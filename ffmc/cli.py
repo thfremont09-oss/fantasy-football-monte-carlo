@@ -19,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
   python -m ffmc --league 1234567890 --user myname # start/sit for your Sleeper team vs your opponent
   python -m ffmc --players "Josh Allen, Bijan Robinson, ..." --scoring half
   python -m ffmc --demo                            # offline demo with fake players
+  python -m ffmc --backtest --week 9 --scoring espn  # predicted vs. actual best lineup for week 9
 """)
     src = p.add_argument_group("whose team")
     src.add_argument("--league", help="Sleeper league id (uses league scoring, roster slots and matchup)")
@@ -30,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     opts = p.add_argument_group("settings")
     opts.add_argument("--season", type=int, help="NFL season (default: current)")
     opts.add_argument("--week", type=int, help="NFL week (default: current)")
-    opts.add_argument("--scoring", choices=["ppr", "half", "std"], default="ppr",
+    opts.add_argument("--scoring", choices=["ppr", "half", "std", "espn"], default="ppr",
                       help="scoring preset when not using --league (default: ppr)")
     opts.add_argument("--slots", help="starting slots, e.g. 'QB,RB,RB,WR,WR,TE,FLEX,K,DEF' (default)")
     opts.add_argument("--objective", choices=["auto", "mean", "win", "floor", "ceiling"], default="auto",
@@ -43,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
                       help="turn off teammate/game correlation in the simulation")
     opts.add_argument("--cache-dir", default=".ffmc_cache", help="where API responses are cached")
     opts.add_argument("--demo", action="store_true", help="use synthetic data (no network needed)")
+    opts.add_argument("--backtest", action="store_true",
+                      help="for a past week: compare the simulator's pick with the actual best lineup "
+                           "(default week: the last completed one)")
     return p
 
 
@@ -52,6 +56,8 @@ def _split(text: str | None) -> list[str] | None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.backtest:
+        return _backtest(args)
     try:
         if args.demo:
             from .demo import demo_slate
@@ -70,4 +76,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(report.render(result, dream=args.dream))
+    return 0
+
+
+def _backtest(args) -> int:
+    from .backtest import render_backtest, run_backtest
+
+    client = SleeperClient(args.cache_dir)
+    try:
+        state = client.state()
+        season = args.season or int(state.get("league_season") or state["season"])
+        week = args.week or int(state.get("week") or 2) - 1
+        if week < 1:
+            raise ValueError("no completed week to backtest yet")
+        bt = run_backtest(client, season, week, scoring=args.scoring, slots=_split(args.slots),
+                          n_sims=args.sims, seed=args.seed, history_weeks=args.history_weeks)
+    except (SleeperError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(render_backtest(bt))
     return 0

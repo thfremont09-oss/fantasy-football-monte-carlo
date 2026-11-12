@@ -83,12 +83,19 @@ Try it offline with made-up players:
 python -m ffmc --demo
 ```
 
+See how the simulator would have done in a past week (its pick vs. the actual
+best lineup, scored with ESPN's default PPR rules):
+
+```bash
+python -m ffmc --backtest --week 9 --scoring espn
+```
+
 Useful options (`python -m ffmc --help` for all):
 
 | option | meaning |
 | --- | --- |
 | `--objective mean\|win\|floor\|ceiling` | maximize expected points, win probability, a safe floor (10th pct) or upside (90th pct). Default: `win` when there's an opponent, otherwise `mean`. |
-| `--scoring ppr\|half\|std` | scoring preset when not using `--league` |
+| `--scoring ppr\|half\|std\|espn` | scoring preset when not using `--league` (`espn` = ESPN default PPR: interceptions -2) |
 | `--slots "QB,RB,RB,WR,WR,TE,FLEX,SUPER_FLEX,K,DEF"` | custom lineup slots |
 | `--week N --season YYYY` | a different week |
 | `--sims N` | number of simulations (default 10,000) |

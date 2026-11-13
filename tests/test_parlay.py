@@ -94,3 +94,31 @@ def test_merge_combines_same_bet_and_refuses_mismatched_rules():
     out = pl.merge(dk, ks)
     assert all(l.sources == ["DraftKings"] for l in out if l.key.startswith("espn:"))
     assert all(l.game == "espn:2" for l in out if l.key.startswith("kalshi:"))     # still the same game
+
+
+def test_niche_scores_order_leagues_by_obscurity():
+    s = pl.niche_score
+    assert s("Football", "NFL") == 0 and s("Basketball", "NBA 3rd Quarter Total") == 0
+    assert s("Soccer", "Premier League") == 0 and s("Soccer", "Italy Serie A") == 0
+    assert s("Soccer", "German Women's Bundesliga") > 0          # women's leagues aren't "mainstream"
+    assert s("Basketball", "WNBA") < s("Basketball", "Bosnia Division I") < s("Table Tennis", "Russia Liga Pro Match")
+    japan_wta = s("Tennis", "ITF Women's Match - Japan (Kyoto)")
+    assert japan_wta >= pl.NICHE_LEVELS[5][1]                    # the top of the Niche-o-meter
+    assert s("Esports", "Valorant Map Winner") >= pl.NICHE_LEVELS[3][1]
+
+
+def test_within_filters_by_days_and_market_depth():
+    now = T0
+    legs = [leg(1, .5, ask=.5), leg(2, .5, ask=.5), leg(3, .5, ask=.5)]
+    legs[0].start = now + dt.timedelta(hours=10)
+    legs[1].start = now + dt.timedelta(days=4)
+    legs[2].start = now + dt.timedelta(hours=5)
+    legs[2].spread = 0.25
+    assert [l.key for l in pl.within(legs, 2, now=now)] == ["l1", "l3"]
+    assert [l.key for l in pl.within(legs, 7, max_spread=0.2, now=now)] == ["l1", "l2"]
+
+
+def test_single_bets_allowed():
+    legs = [leg(i, p, ask=p + .01) for i, p in enumerate([.3, .4, .2])]
+    cands = pl.candidates(legs, pl.Settings(app="Kalshi", risk=9, payout_range=(2, 10), legs_range=(1, 1)))
+    assert cands and all(len(c.legs) == 1 for c in cands)

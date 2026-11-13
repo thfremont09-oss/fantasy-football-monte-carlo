@@ -10,7 +10,7 @@ from ffmc import fpl, madness, parlay, simulate
 from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
-PARLAYS = "views/parlays.py"
+PARLAYS, NICHE = "views/parlays.py", "views/niche.py"
 
 
 def eyebrow(text: str) -> None:
@@ -46,7 +46,7 @@ st.markdown(f"""
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
   out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>4</b><small>Tools</small></div>
+    <div><b>5</b><small>Tools</small></div>
     <div><b>80,000+</b><small>Markets scanned</small></div>
     <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
@@ -69,9 +69,12 @@ cards = [
     ("bets", "DraftKings + Kalshi · Every day", "Parlay Lab", PARLAYS, "Open Parlay Lab",
      "The best parlays for your risk and payout, from 80,000+ DraftKings and Kalshi markets, niche sports "
      "included, each tested on a million simulated slates."),
+    ("niche", "Off the beaten path · Every day", "Niche Sports", NICHE, "Open Niche Sports",
+     "Russian table tennis, Bosnian basketball, Valorant, women's cricket: every obscure market on the board, "
+     "ranked by a Niche-o-meter, with the best bets for your risk and payout."),
 ]
-for row in (cards[:2], cards[2:]):
-    for col, (sport, label, title, path, cta, text) in zip(st.columns(2, gap="medium"), row):
+for row in (cards[:3], cards[3:]):
+    for col, (sport, label, title, path, cta, text) in zip(st.columns(len(row), gap="medium"), row):
         with col, st.container(key=f"card_{sport}"):
             st.markdown(card_top(sport, label), unsafe_allow_html=True)
             st.subheader(title)

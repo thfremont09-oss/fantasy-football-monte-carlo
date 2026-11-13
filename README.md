@@ -231,3 +231,23 @@ Each parlay shows its chance to hit, payout on each app, expected value and how
 often it's worth it across scenarios, plus what happens if you bet them all.
 Most parlays lose money (each leg carries the bookmaker's cut); Kalshi combo
 payouts are estimates. For entertainment only; 21+; 1-800-GAMBLER.
+
+## Niche Sports
+
+`views/niche.py` uses the same scan and Monte Carlo as Parlay Lab, limited to
+the most obscure markets on the board: Russian Liga Pro table tennis, Bosnian
+basketball, Dota 2 and Counter-Strike, women's T20 cricket, chess, women's
+college volleyball, winter-league baseball and so on (100-180 leagues on a
+typical day).
+
+Every league gets an obscurity score (`niche_score` in `ffmc/parlay.py`): a base
+for the sport (football lowest; table tennis, darts, chess highest), +1 for a
+women's league, +1 for a lower division / cup / youth / winter / ITF event, +1
+for a league outside the US. The NFL, NBA, NHL, MLB, big college sports and
+Europe's top soccer leagues score zero. The **Niche-o-meter** (1-5) keeps leagues
+above a threshold; level 5 is "Japanese women's tennis" (ITF women's events in
+Japan score at that level whenever Kalshi lists them).
+
+Defaults suit thin markets: Kalshi, single bets allowed, games in the next 7
+days, bid/ask gaps up to 20¢ (adjustable). The page shows what's on the board,
+the most obscure thing available, and the best singles and parlays.

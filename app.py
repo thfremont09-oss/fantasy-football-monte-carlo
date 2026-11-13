@@ -13,7 +13,10 @@ madness = st.Page("views/march_madness.py", title="March Madness", icon=":materi
                   url_path="march-madness")
 fpl = st.Page("views/fpl.py", title="Fantasy Premier League", icon=":material/sports_soccer:", url_path="fpl")
 parlays = st.Page("views/parlays.py", title="Parlay Lab", icon=":material/casino:", url_path="parlays")
-PAGES = [home, football, madness, fpl, parlays]
+niche = st.Page("views/niche.py", title="Niche Sports", icon=":material/explore:", url_path="niche")
+PAGES = [home, football, madness, fpl, parlays, niche]
+SHORT = {"football": "NFL Lineups", "march-madness": "March Madness", "fpl": "FPL", "parlays": "Parlay Lab",
+         "niche": "Niche Sports"}                     # short labels so all tabs fit across the header
 page = st.navigation(PAGES, position="hidden")
 
 apply_site_css()
@@ -27,7 +30,7 @@ with st.container(key="site_header"):
         for p in PAGES[1:]:
             with st.container(key=f"navlink_{'on' if p.url_path == page.url_path else 'off'}_{p.url_path}",
                               width="content"):
-                st.page_link(p, label=p.title)
+                st.page_link(p, label=SHORT.get(p.url_path, p.title))
     with menu, st.container(key="menu_col"):
         # A separate key per page, so the menu starts closed after you navigate.
         with st.popover("Menu", icon=":material/menu:", key=f"menu_{page.url_path or 'home'}"), \

@@ -34,7 +34,8 @@ from .http import APIError, CachedJSON
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/{path}/scoreboard"
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 KALSHI_FEE = 0.07          # taker fee: 0.07 x price x (1 - price) per contract
-MAX_SPREAD = 0.15          # skip Kalshi markets whose bid/ask gap is wider than 15 cents
+MAX_SPREAD = 0.30          # keep Kalshi markets with a bid/ask gap up to 30 cents (pages filter tighter)
+SCAN_DAYS = 7              # one shared scan covers the next week; pages filter to fewer days
 WINNER_SERIES = re.compile(r"(GAME|MATCH|FIGHT|BOUT)$")
 
 # ESPN leagues that carry DraftKings odds: (sport, league, path)
@@ -76,6 +77,11 @@ class Leg:
     kalshi_ask: float | None = None
     kalshi_mid: float | None = None
     sources: list[str] = field(default_factory=list)
+    spread: float = 0.0          # Kalshi bid/ask gap (0 for DraftKings): wider = thinner market
+
+    @property
+    def niche(self) -> int:
+        return niche_score(self.sport, self.league)
 
     @property
     def dk_decimal(self) -> float | None:
@@ -120,6 +126,48 @@ def _devig(odds: list[int | None]) -> list[float] | None:
     return [x / s for x in imp]
 
 
+# ---------------------------------------------------------------- how niche
+# How far off the beaten path each sport is (for a US audience), 0 = mainstream.
+SPORT_OBSCURITY = {"Football": 0, "Basketball": 1, "Baseball": 1, "Hockey": 1, "Soccer": 1, "Golf": 2,
+                   "Motorsport": 2, "MMA": 2, "UFC": 2, "Boxing": 2, "Tennis": 2, "Olympics": 2, "Cricket": 3,
+                   "Esports": 3, "Rugby": 3, "Aussie Rules": 3, "Lacrosse": 3, "Video games": 3, "Volleyball": 4,
+                   "Table Tennis": 4, "Darts": 4, "Handball": 4, "Cycling": 4, "Wrestling": 4, "Squash": 5,
+                   "Chess": 5, "Rowing": 5}
+MAINSTREAM = re.compile(r"\b(NFL|Pro Football|NBA|NHL|MLB|College Football|Men's College Basketball|Premier League|"
+                        r"EPL|La Liga|Bundesliga|Serie A|Ligue 1|Champions League|UFC|Super Bowl|World Series|"
+                        r"Stanley Cup|Heisman)\b", re.I)
+WOMEN = re.compile(r"(Women|\(W\)|WTA|NWSL|WNBA|Ladies|Female)", re.I)
+LOWER_TIER = re.compile(r"(\b2\b|\bII\b|\bIII\b|\b[AB]2\b|\b2nd\b|Second|Division|Liga Pro|League One|League Two|Serie [BC]\b|Segunda|\b[234]\. |"
+                        r"\bCup\b|\bU-?\d\d\b|Youth|Junior|Winter League|Challenger|\bITF\b|Amateur|Reserve|"
+                        r"Exhibition|Friendly|Qualif)", re.I)
+COUNTRIES = re.compile(r"\b(Japan|Korea|China|Chinese|Taiwan|Thai|Vietnam|India|Indonesia|Philippine|Malaysia|Australia|"
+                       r"New Zealand|Bosnia|Croatia|Serbia|Slovakia|Slovenia|Czech|Poland|Polish|Hungary|Romania|"
+                       r"Bulgaria|Greece|Greek|Turkey|Turkish|Cyprus|Israel|Lebanon|Iceland|Norway|Sweden|Swedish|"
+                       r"Denmark|Danish|Finland|Finnish|Estonia|Latvia|Lithuania|Ukraine|Russia|Belarus|Georgia|"
+                       r"Kazakh|Portugal|Belgium|Belgian|Austria|Swiss|Switzerland|Scotland|Scottish|Wales|Welsh|"
+                       r"Ireland|Irish|Peru|Paraguay|Uruguay|Chile|Bolivia|Ecuador|Colombia|Venezuela|Puerto Ric|"
+                       r"Dominican|Nicaragua|Cuba|Panama|Costa Rica|Honduras|Guatemala|Egypt|Morocco|Saudi|Qatar|"
+                       r"Emirates|Iran|Nigeria|South Africa|Kenya|Argentin|Brazil|Ital|Spain|Spanish|France|French|"
+                       r"German|Netherlands|Dutch|England|English|Mexic)", re.I)
+NICHE_LEVELS = {
+    1: ("Off the beaten path", 1, "Anything outside the big US leagues and Europe's top soccer"),
+    2: ("Obscure", 3, "Smaller sports, women's leagues and foreign leagues"),
+    3: ("Deep cuts", 4, "Lower divisions abroad, esports, cricket, table tennis"),
+    4: ("Truly obscure", 5, "Women's and second-tier leagues in far-flung places"),
+    5: ("Japanese women's tennis", 6, "The deepest end of the board"),
+}
+
+
+def niche_score(sport: str, league: str) -> int:
+    """0 = mainstream (NFL, NBA, Premier League...), higher = more niche."""
+    women = bool(WOMEN.search(league))
+    if MAINSTREAM.search(league) and not women:
+        return 0
+    score = 1 + SPORT_OBSCURITY.get(sport, 3)
+    score += women + bool(LOWER_TIER.search(league)) + bool(COUNTRIES.search(league))
+    return score
+
+
 def kalshi_market_type(series: str) -> str:
     s = series.upper()
     if WINNER_SERIES.search(s):
@@ -158,7 +206,7 @@ class OddsClient:
     def kalshi_sports_series(self) -> dict[str, dict]:
         return {s["ticker"]: s for s in self.kalshi("/series", [("category", "Sports")], ttl=86400).get("series", [])}
 
-    def kalshi_all_markets(self, max_close: int, progress=None, time_limit: float = 120) -> tuple[list[dict], bool]:
+    def kalshi_all_markets(self, max_close: int, progress=None, time_limit: float = 100) -> tuple[list[dict], bool]:
         """Every open single (non-combo) Kalshi market closing before ``max_close``, page by page."""
         markets, cursor, start = [], "", time.time()
         while True:
@@ -295,7 +343,7 @@ def kalshi_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = Non
             spread = ask - bid
             kappa = max(25.0, 150 - 800 * spread)
             base = dict(game=game, sport=tags[0] if tags else "Other", league=league, matchup=matchup, start=start,
-                        market=kind, sources=["Kalshi"])
+                        market=kind, sources=["Kalshi"], spread=spread)
             if winner:
                 p = mid / total_mid if len(quotes) == len(ms) and len(quotes) >= 2 else mid
                 label = f"{name} win" if name.lower() not in ("tie", "draw") else "Draw"
@@ -375,7 +423,14 @@ def merge(dk: list[Leg], kalshi: list[Leg]) -> list[Leg]:
     return out
 
 
-def load_legs(days: int = 3, cache_dir=".ffmc_cache", progress=None) -> tuple[list[Leg], dict]:
+def within(legs: list[Leg], days: float, max_spread: float = 1.0, now: dt.datetime | None = None) -> list[Leg]:
+    """Legs whose game is within ``days`` and whose Kalshi bid/ask gap is at most ``max_spread``."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    end = now + dt.timedelta(days=days, hours=6)
+    return [l for l in legs if now <= l.start <= end and l.spread <= max_spread]
+
+
+def load_legs(days: int = SCAN_DAYS, cache_dir=".ffmc_cache", progress=None) -> tuple[list[Leg], dict]:
     """Every leg on offer: DraftKings (via ESPN) and Kalshi. ``progress(stage, fraction, stats)``."""
     client = OddsClient(cache_dir)
     stats: dict = {"notes": []}
@@ -384,14 +439,16 @@ def load_legs(days: int = 3, cache_dir=".ffmc_cache", progress=None) -> tuple[li
         if progress:
             progress(stage, frac, stats)
 
-    say("Pulling DraftKings lines from 24 leagues", 0.02)
-    dk = espn_legs(client, days)
-    stats["dk_legs"] = len(dk)
-    say("Scanning every open Kalshi sports market", 0.12)
+    say("Pulling DraftKings lines and scanning every open Kalshi sports market", 0.02)
+    # DraftKings (via ESPN) loads in the background while Kalshi is scanned.
+    pool = ThreadPoolExecutor(1)
+    dk_job = pool.submit(espn_legs, client, days)
     try:
         def page(n):
             stats["scanned"] = n
-            say("Scanning every open Kalshi sports market", min(0.85, 0.12 + 0.73 * n / 90_000))
+            if dk_job.done() and "dk_legs" not in stats:
+                stats["dk_legs"] = len(dk_job.result())
+            say("Scanning every open Kalshi sports market", min(0.85, 0.05 + 0.8 * n / 90_000))
         ks, kstats = kalshi_legs(client, days, progress=page)
         stats.update(kstats)
         if not kstats["complete"]:
@@ -401,6 +458,9 @@ def load_legs(days: int = 3, cache_dir=".ffmc_cache", progress=None) -> tuple[li
         ks = []
         stats["notes"].append(f"Kalshi prices unavailable right now ({exc}); showing DraftKings only.")
     stats["kalshi_legs"] = len(ks)
+    dk = dk_job.result()
+    pool.shutdown()
+    stats["dk_legs"] = len(dk)
     say("Matching DraftKings and Kalshi games", 0.9)
     legs = [l for l in merge(dk, ks) if 0.01 < l.p < 0.99]
     stats["legs"] = len(legs)

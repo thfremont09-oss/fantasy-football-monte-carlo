@@ -140,6 +140,16 @@ Your league id is the number in the Sleeper web URL:
    often a player was in the best lineup in hindsight; it's a quick read on
    close start/sit calls.
 
+6. **Why this player?** (`ffmc/matchup.py`). In the web app, click any player in
+   the lineup or bench table for a short card: the opponent, home or away and
+   kickoff; who's guarding them (the opponent's starting cornerbacks for a WR,
+   safeties and a linebacker for a TE, linebackers and a tackle for an RB, pass
+   rushers for a QB; from ESPN's depth charts); how many PPR points that defense
+   has given up to the position per game this season and its rank of 32 (worked
+   out from every player's weekly points and the NFL schedule); the simulation
+   numbers; who they beat out for the spot (or who beat them); and ESPN's weekly
+   write-up.
+
 API responses are cached in `.ffmc_cache/` (the player database for a day,
 projections for an hour).
 

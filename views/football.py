@@ -10,8 +10,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from ffmc import engine
+from zoneinfo import ZoneInfo
+
+from ffmc import engine, matchup
 from ffmc.data import Slate, with_rosters
+from ffmc.lineup import SLOT_ELIGIBILITY
 from ffmc.demo import demo_slate
 from ffmc.espn_ff import DEFAULT_RULES, ESPNError, ESPNFantasy, load_default, load_league
 from ffmc.lineup import DEFAULT_SLOTS
@@ -21,6 +24,7 @@ from ffmc.ui import SPORTS, banner
 YOU_COLOR = SPORTS["nfl"]["color"]
 OPP_COLOR = "#c75a1c"
 BENCH_COLOR = "#a3a29c"
+ET = ZoneInfo("America/New_York")
 
 SLOT_TYPES = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"]
 SLOT_LABELS = {"FLEX": "FLEX (RB/WR/TE)", "SUPER_FLEX": "OP / Superflex (QB/RB/WR/TE)", "DEF": "D/ST", "K": "K"}
@@ -237,17 +241,78 @@ st.caption(f"Goal: {OBJECTIVE_TEXT[res.objective]}."
               if res.objective != "mean" and res.mean_lineup_points is not None else ""))
 
 
-def show_table(df: pd.DataFrame) -> None:
+@st.cache_data(ttl=1800, show_spinner="Looking up the matchup...")
+def player_matchup(season: int, week: int, pid: str, pos: str, team: str | None) -> matchup.Matchup:
+    return matchup.matchup(ESPNFantasy(season), pid, pos, team, week)
+
+
+def why_card(r: engine.PlayerResult, slot: str, starter: bool) -> None:
+    """Short, plain-English reasons for one player, shown when their row is clicked."""
+    p = r.player
+    lines = []
+    m = player_matchup(slate.season, slate.week, p.player_id, p.position, p.team) if live and p.team else None
+    if m and m.opponent:
+        when = f", {m.kickoff.astimezone(ET):%A %I:%M %p} ET".replace(" 0", " ") if m.kickoff else ""
+        lines.append(f"**Opponent:** {'vs' if m.home else '@'} the **{m.opponent}** "
+                     f"({'home' if m.home else 'away'}){when}.")
+        if m.guards:
+            names = ", ".join(f"**{n}** ({role.lower()})" for role, n in m.guards)
+            lines.append(f"**{m.guard_label}:** {names}.")
+        if m.allowed_rank:
+            most = "the most" if m.allowed_rank == 1 else f"the {matchup.ordinal(m.allowed_rank)}-most"
+            lines.append(f"**Matchup:** this season the {m.opp_abbrev} defense has given up {most} fantasy points "
+                         f"to {p.position}s of {m.n_teams} teams ({m.allowed_avg:.1f} PPR points per game). "
+                         f"That's {matchup.verdict(m.allowed_rank, m.n_teams)}.")
+    elif not p.opponent:
+        lines.append("**Opponent:** none this week (bye), so they can't score.")
+    recent = (f" and has averaged **{p.hist_mean:.1f}** over the last {p.hist_games} games"
+              if p.hist_mean is not None and p.hist_games else "")
+    lines.append(f"**The numbers:** ESPN projects **{p.projection:.1f}** points{recent}. Across "
+                 f"{res.n_sims:,} simulated weeks: **{r.sim_mean:.1f}** on average, usually between "
+                 f"{r.p10:.1f} and {r.p90:.1f}, and in the best possible lineup **{r.start_pct:.0f}%** of the time.")
+    if p.injury_status:
+        lines.append(f"**Injury:** listed as **{p.injury_status}**, so some simulated weeks have them sitting out.")
+    # Who they beat out (or who's ahead of them), at the same lineup spot.
+    if starter:
+        alts = [b for b in res.bench if b.player.position in SLOT_ELIGIBILITY.get(slot, {b.player.position})]
+        if alts:
+            b = max(alts, key=lambda x: x.sim_mean)
+            lines.append(f"**Why not the bench?** Starting at {slot} over **{b.player.name}** "
+                         f"({b.sim_mean:.1f} simulated points vs {r.sim_mean:.1f}).")
+    else:
+        ahead = [(s, x) for s, x in zip(res.slots, res.lineup)
+                 if x and p.position in SLOT_ELIGIBILITY.get(s, set())]
+        if ahead:
+            s, x = min(ahead, key=lambda t: t[1].sim_mean)
+            lines.append(f"**Why the bench?** **{x.player.name}** at {s} came out ahead "
+                         f"({x.sim_mean:.1f} simulated points vs {r.sim_mean:.1f}).")
+    with st.container(border=True, key=f"why_{p.player_id}"):
+        st.markdown(f"#### Why {'start' if starter else 'bench'} {p.name}?")
+        st.markdown("\n".join(f"- {ln}" for ln in lines))
+        if m and m.outlook:
+            st.caption(f"ESPN's take: {m.outlook}")
+
+
+def show_table(df: pd.DataFrame, rows: list[engine.PlayerResult], slots: list[str], key: str,
+               starter: bool = True) -> None:
     row_h = 44 if live else 35
-    st.dataframe(df, column_config=COLCFG, hide_index=True, width="stretch",
-                 row_height=row_h, height=(len(df) + 1) * row_h + 3)
+    event = st.dataframe(df, column_config=COLCFG, hide_index=True, width="stretch", row_height=row_h,
+                         height=(len(df) + 1) * row_h + 3, on_select="rerun",
+                         selection_mode=["single-row", "single-cell"], key=key)
+    sel = event.selection if event else None
+    # Clicking any cell (or the row's checkbox) picks that player.
+    picked = list(getattr(sel, "rows", None) or []) + [c[0] for c in (getattr(sel, "cells", None) or [])]
+    if picked:
+        why_card(rows[picked[0]], slots[picked[0]], starter)
 
 
-def table(rows, slots, show_start=True) -> pd.DataFrame:
-    data = []
+def table(rows, slots, show_start=True) -> tuple[pd.DataFrame, list, list]:
+    data, kept, kept_slots = [], [], []
     for slot, r in zip(slots, rows):
         if r is None:
             continue
+        kept.append(r)
+        kept_slots.append(slot)
         p = r.player
         row = {"": headshot(p, live), "Slot": slot, "Player": p.name, "Pos": p.position,
                "Team": p.team or "FA", "Opp": p.opponent or "—", "Projection": p.projection,
@@ -256,7 +321,7 @@ def table(rows, slots, show_start=True) -> pd.DataFrame:
         if show_start:
             row["Best lineup %"] = r.start_pct
         data.append(row)
-    return pd.DataFrame(data)
+    return pd.DataFrame(data), kept, kept_slots
 
 
 COLCFG = {
@@ -327,10 +392,11 @@ tabs = st.tabs(tab_names)
 
 with tabs[0]:
     st.subheader("Start these players" if not dream else "Best possible lineup this week")
-    show_table(table(res.lineup, res.slots))
+    st.caption("Click a player to see why: who they play, who's guarding them, and how the simulations rated them.")
+    show_table(*table(res.lineup, res.slots), key="tbl_lineup")
     if res.bench:
         st.subheader("Bench")
-        show_table(table(res.bench, ["BN"] * len(res.bench)))
+        show_table(*table(res.bench, ["BN"] * len(res.bench)), key="tbl_bench", starter=False)
     st.subheader("How wide is each player's range?")
     starters = [r for r in res.lineup if r]
     bench = [r for r in res.bench if r.player.mean > 0]
@@ -346,4 +412,4 @@ with tabs[1]:
 if res.opp_lineup is not None:
     with tabs[2]:
         st.subheader(f"{slate.opp_name}'s lineup")
-        show_table(table(res.opp_lineup, res.slots, show_start=False))
+        show_table(*table(res.opp_lineup, res.slots, show_start=False), key="tbl_opp")

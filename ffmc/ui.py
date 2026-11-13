@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13g"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13h"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -21,6 +21,9 @@ SPORTS = {
     "epl": {"label": "Premier League", "color": "#0f7a86", "dark": "#06464f",
             # mown pitch stripes
             "texture": "repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 56px, transparent 56px 112px)"},
+    "bets": {"label": "DraftKings + Kalshi", "color": "#5b3cc4", "dark": "#24165f",
+             # ticker-tape diagonals
+             "texture": "repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0 2px, transparent 2px 26px)"},
 }
 
 SITE_CSS = f"""

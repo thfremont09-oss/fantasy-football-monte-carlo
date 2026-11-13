@@ -204,3 +204,30 @@ values) or **Custom**. The budget covers the full 15-player squad: the XI plus t
 cheapest legal bench (2 GK, 5 DEF, 5 MID, 3 FWD, max 3 per club).
 Enter your FPL team ID to pick from your own squad. FPL only publishes a squad
 after a deadline passes, so transfers made since the last deadline aren't seen.
+
+## Parlay Lab
+
+`views/parlays.py` (UI) and `ffmc/parlay.py` (engine) find the best parlays for
+**DraftKings**, **Kalshi**, or whichever pays more:
+
+1. **Every line.** DraftKings moneylines, spreads and totals for 24 leagues (via
+   ESPN's public scoreboards) and every open Kalshi sports market for the next
+   few days (80,000+ markets scanned, ~300 leagues: winners, spreads, totals,
+   player props; both Yes and No), in about a minute. The scan is shared by all
+   visitors for 10 minutes; a loading screen shows live counts meanwhile.
+2. **Fair chances.** The bookmaker's cut is removed from every price. When
+   DraftKings and Kalshi list the same game with the same rules, the two are
+   averaged; games where the rules differ (e.g. a 3-way line vs a "who advances"
+   market) are kept apart.
+3. **A million slates.** 1,000 scenarios each nudge every leg's chance (the
+   estimates are uncertain); each scenario plays every game 1,000 times.
+   Results are stored as bits, so scoring hundreds of parlays takes seconds.
+4. **Your settings:** where you bet, risk (1-10: the minimum chance a parlay must
+   hit, from 45% down to 0.5%), payout range (1.5x-1000x), number of legs,
+   stake, sports, bet types, each leg's chance range, one leg per game, and rank
+   by best value / most likely / biggest payout.
+
+Each parlay shows its chance to hit, payout on each app, expected value and how
+often it's worth it across scenarios, plus what happens if you bet them all.
+Most parlays lose money (each leg carries the bookmaker's cut); Kalshi combo
+payouts are estimates. For entertainment only; 21+; 1-800-GAMBLER.

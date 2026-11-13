@@ -6,10 +6,11 @@ import inspect
 
 import streamlit as st
 
-from ffmc import fpl, madness, simulate
+from ffmc import fpl, madness, parlay, simulate
 from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
+PARLAYS = "views/parlays.py"
 
 
 def eyebrow(text: str) -> None:
@@ -45,7 +46,8 @@ st.markdown(f"""
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
   out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>3</b><small>Sports</small></div>
+    <div><b>4</b><small>Tools</small></div>
+    <div><b>80,000+</b><small>Markets scanned</small></div>
     <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
   </div>
@@ -64,14 +66,18 @@ cards = [
     ("epl", "Premier League · Every gameweek", "Fantasy Premier League", FPL, "Open FPL team picker",
      "Your best XI, bench order and captain, on any budget from £100m up or none at all. Or enter your "
      "FPL team ID."),
+    ("bets", "DraftKings + Kalshi · Every day", "Parlay Lab", PARLAYS, "Open Parlay Lab",
+     "The best parlays for your risk and payout, from 80,000+ DraftKings and Kalshi markets, niche sports "
+     "included, each tested on a million simulated slates."),
 ]
-for col, (sport, label, title, path, cta, text) in zip(st.columns(3, gap="medium"), cards):
-    with col, st.container(key=f"card_{sport}"):
-        st.markdown(card_top(sport, label), unsafe_allow_html=True)
-        st.subheader(title)
-        st.markdown(f'<p class="card-text">{text}</p>', unsafe_allow_html=True)
-        with st.container(key=f"cardlink_{sport}"):
-            st.page_link(path, label=cta, icon=":material/arrow_forward:", width="stretch")
+for row in (cards[:2], cards[2:]):
+    for col, (sport, label, title, path, cta, text) in zip(st.columns(2, gap="medium"), row):
+        with col, st.container(key=f"card_{sport}"):
+            st.markdown(card_top(sport, label), unsafe_allow_html=True)
+            st.subheader(title)
+            st.markdown(f'<p class="card-text">{text}</p>', unsafe_allow_html=True)
+            with st.container(key=f"cardlink_{sport}"):
+                st.page_link(path, label=cta, icon=":material/arrow_forward:", width="stretch")
 
 # ------------------------------------------------------------ how it works
 st.write("")
@@ -103,8 +109,9 @@ def wobble(n: int) -> str:
 
 
 sims = [("nfl", "NFL lineups", "weeks", "a few seconds"), ("ncaa", "March Madness", "tournaments", "about a second"),
-        ("epl", "Fantasy Premier League", "gameweeks", "a minute or two")]
-for col, (sport, name, unit, speed) in zip(st.columns(3, gap="medium"), sims):
+        ("epl", "Fantasy Premier League", "gameweeks", "a minute or two"),
+        ("bets", "Parlay Lab", "slates", "under a minute")]
+for col, (sport, name, unit, speed) in zip(st.columns(4, gap="medium"), sims):
     c = SPORTS[sport]["color"]
     col.markdown(f"""
 <div style="background:#fff;border:1px solid #dfe3e8;border-top:4px solid {c};border-radius:8px;padding:.9rem 1rem">
@@ -130,8 +137,11 @@ inputs = {
             "expected assists (xA) per 90 minutes", "How often each player starts, and their injury status",
             "Saves, defensive actions and FPL's scoring rules", "Player prices and your budget (or none)",
             "This gameweek's fixtures, including doubles and blanks"],
+    "bets": ["DraftKings moneylines, spreads and totals for 24 leagues", "Every open Kalshi sports market: "
+             "winners, spreads, totals and player props", "Each price with the bookmaker's cut removed",
+             "Your risk, payout, number of legs, sports and bet types"],
 }
-for col, (sport, items) in zip(st.columns(3, gap="medium"), inputs.items()):
+for col, (sport, items) in zip(st.columns(4, gap="medium"), inputs.items()):
     s = SPORTS[sport]
     col.markdown(f'<p class="eyebrow" style="color:{s["color"]}">{s["label"]}</p>' +
                  "".join(f"<p style='margin:.35rem 0;border-left:3px solid {s['color']};padding-left:.6rem'>{i}</p>"
@@ -143,7 +153,7 @@ eyebrow("Under the hood")
 st.header("The idea, in a few lines of code")
 st.write("Simplified versions of what each simulator does, written to be read by anyone. "
          "The real code is one click away under each one.")
-t_nfl, t_ncaa, t_epl = st.tabs(["NFL lineups", "March Madness", "Premier League"])
+t_nfl, t_ncaa, t_epl, t_bets = st.tabs(["NFL lineups", "March Madness", "Premier League", "Parlay Lab"])
 
 with t_nfl:
     st.code('''# Play this week 1,000,000 times
@@ -209,6 +219,27 @@ for gameweek in range(1_000_000):
 # Captain = the player who topped the XI most often.''', language="python")
     real_code(fpl.simulate, fpl.player_points)
 
+with t_bets:
+    st.code('''# Step 1: every leg's real chance, with the bookmaker's cut taken out.
+# DraftKings -150 / +130 -> 58% / 42% after removing the cut.
+# If Kalshi lists the same game too, average the two.
+chances = fair_chance(every_draftkings_line + every_kalshi_market)
+
+# Step 2: play every game 1,000,000 times.
+for scenario in range(1_000):
+    # Our chances are estimates, so nudge each one a little per scenario.
+    nudged = wiggle(chances)
+    for slate in range(1_000):
+        won[leg] = random() < nudged[leg]        # for every leg at once
+
+# Step 3: score every parlay that fits your risk, payout and legs.
+for parlay in candidates(your_settings):
+    hit_rate = share_of_slates_where(all legs in parlay won)
+    value = hit_rate * parlay.payout - 1      # profit per $1, on average
+
+# Show the parlays with the best value (or best odds, or biggest payout).''', language="python")
+    real_code(parlay.simulate)
+
 # ------------------------------------------------------------ track record
 st.write("")
 eyebrow("Track record")
@@ -224,6 +255,7 @@ st.caption("Single results, not long-run averages.")
 
 # ------------------------------------------------------------------- footer
 st.divider()
-st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboard (college basketball) and the official "
-           "Fantasy Premier League API. Not affiliated with ESPN, the NFL, the NCAA or the Premier "
-           f"League. For entertainment; no outcome is guaranteed. Version {APP_VERSION}.")
+st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboards (college basketball and DraftKings odds), the official "
+           "Fantasy Premier League API and Kalshi's public market data. Not affiliated with ESPN, DraftKings, Kalshi, "
+           "the NFL, the NCAA or the Premier League. For entertainment; no outcome is guaranteed. Betting is 21+; "
+           f"if gambling stops being fun, call 1-800-GAMBLER. Version {APP_VERSION}.")

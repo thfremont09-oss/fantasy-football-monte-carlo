@@ -12,7 +12,8 @@ football = st.Page("views/football.py", title="NFL Fantasy Lineups", icon=":mate
 madness = st.Page("views/march_madness.py", title="March Madness", icon=":material/sports_basketball:",
                   url_path="march-madness")
 fpl = st.Page("views/fpl.py", title="Fantasy Premier League", icon=":material/sports_soccer:", url_path="fpl")
-PAGES = [home, football, madness, fpl]
+parlays = st.Page("views/parlays.py", title="Parlay Lab", icon=":material/casino:", url_path="parlays")
+PAGES = [home, football, madness, fpl, parlays]
 page = st.navigation(PAGES, position="hidden")
 
 apply_site_css()

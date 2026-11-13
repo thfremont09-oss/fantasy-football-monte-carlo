@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13a"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13b"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -81,6 +81,29 @@ a, button {{ touch-action: manipulation; }}
 @media (hover: hover) {{ .st-key-menu_items a[data-testid="stPageLink-NavLink"]:hover {{ background: #e9edf2; }} }}
 .st-key-menu_items a[data-testid="stPageLink-NavLink"] p {{ font-size: 1rem; }}
 .st-key-menu_items [data-testid="stCaptionContainer"] {{ padding: 0.4rem 0.9rem 0.2rem; }}
+
+/* ---------- big tap targets for every control (48px is the comfortable thumb size) ---------- */
+.stButton button, .stDownloadButton button, .stFormSubmitButton button {{ min-height: 48px; padding: 0 1.4rem;
+  font-size: 1rem; font-weight: 600; }}
+.stButton button[kind="primary"] {{ min-width: 160px; }}
+[data-testid="stPopover"] button {{ min-height: 48px; }}
+[data-testid="stBaseButton-headerNoPadding"], [data-testid="stSidebarCollapseButton"] button {{ min-width: 44px; min-height: 44px; }}
+[data-testid="stExpandSidebarButton"] {{ min-height: 46px !important; }}
+/* tabs */
+[data-testid="stTab"] {{ min-height: 48px; padding: 0 1rem !important; display: flex; align-items: center; }}
+[data-testid="stTab"] p {{ font-size: 1rem; font-weight: 600; }}
+/* expanders */
+[data-testid="stExpander"] summary {{ min-height: 48px; display: flex; align-items: center; }}
+/* radio buttons and checkboxes: the whole row is tappable */
+.stRadio [role="radiogroup"] label, .stCheckbox label {{ min-height: 44px; display: flex; align-items: center;
+  width: 100%; padding: 2px 0; cursor: pointer; }}
+[data-testid="stToggle"] label {{ min-height: 44px; display: flex; align-items: center; cursor: pointer; }}
+/* page links and inputs */
+a[data-testid="stPageLink-NavLink"] {{ min-height: 44px; display: flex; align-items: center; }}
+[data-testid="stSelectbox"] input, [data-testid="stMultiSelect"] input,
+[data-testid="stTextInputField"], [data-testid="stNumberInputField"], .stTextInput input, .stNumberInput input {{ min-height: 44px; }}
+[data-testid="stNumberInput"] button {{ min-width: 44px; min-height: 44px; }}
+[data-testid="stSegmentedControl"] button, .stPills button {{ min-height: 44px; }}
 
 /* ---------- type ---------- */
 h1, h2, h3, .banner h1 {{ font-family: "Barlow Condensed", sans-serif !important; letter-spacing: .01em; }}

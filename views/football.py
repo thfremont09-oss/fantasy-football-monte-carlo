@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import replace
 
 import altair as alt
@@ -10,11 +11,11 @@ import pandas as pd
 import streamlit as st
 
 from ffmc import engine
-from ffmc.data import Slate, load_live, with_rosters
+from ffmc.data import Slate, with_rosters
 from ffmc.demo import demo_slate
+from ffmc.espn_ff import DEFAULT_RULES, ESPNError, ESPNFantasy, load_default, load_league
 from ffmc.lineup import DEFAULT_SLOTS
 from ffmc.report import OBJECTIVE_TEXT
-from ffmc.sleeper import SleeperClient, SleeperError
 from ffmc.ui import SPORTS, banner
 
 YOU_COLOR = SPORTS["nfl"]["color"]
@@ -22,7 +23,7 @@ OPP_COLOR = "#c75a1c"
 BENCH_COLOR = "#a3a29c"
 
 SLOT_TYPES = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"]
-SLOT_LABELS = {"FLEX": "FLEX (RB/WR/TE)", "SUPER_FLEX": "SUPERFLEX (QB/RB/WR/TE)"}
+SLOT_LABELS = {"FLEX": "FLEX (RB/WR/TE)", "SUPER_FLEX": "OP / Superflex (QB/RB/WR/TE)", "DEF": "D/ST", "K": "K"}
 OBJECTIVES = {
     "auto": "Auto (win chance if I have an opponent)",
     "mean": "Most expected points",
@@ -30,28 +31,30 @@ OBJECTIVES = {
     "floor": "Safe floor (avoid a dud week)",
     "ceiling": "Big ceiling (swing for upside)",
 }
+MODES = ["My ESPN league", "Best possible lineup (any NFL player)", "Pick my players"]
+DEMO_SCORING = {"ESPN PPR": "espn", "ESPN Half-PPR": "half", "ESPN Standard": "std"}
+
+
+def nfl_season() -> int:
+    today = dt.date.today()
+    return today.year if today.month >= 8 else today.year - 1
+
 
 # ------------------------------------------------------------------ data
-@st.cache_resource
-def client() -> SleeperClient:
-    return SleeperClient(".ffmc_cache")
+@st.cache_data(ttl=1800, show_spinner=False)
+def espn_week(season: int) -> int:
+    return ESPNFantasy(season).current_week()
 
 
-@st.cache_data(ttl=600, show_spinner=False)
-def nfl_state() -> dict:
-    return client().state()
+@st.cache_data(ttl=1800, show_spinner="Downloading ESPN projections and stats...")
+def load_pool(season: int, week: int, rules: str, slots: tuple[str, ...], history_weeks: int) -> Slate:
+    return load_default(ESPNFantasy(season), rules, list(slots), week, history_weeks)
 
 
-@st.cache_data(ttl=3600, show_spinner="Downloading this week's NFL projections and stats...")
-def load_pool(season: int, week: int, scoring: str, slots: tuple[str, ...], history_weeks: int) -> Slate:
-    return load_live(client(), season=season, week=week, scoring=scoring, slots=list(slots),
-                     history_weeks=history_weeks)
-
-
-@st.cache_data(ttl=300, show_spinner="Loading your Sleeper league...")
-def load_league(league_id: str, username: str, season: int, week: int, history_weeks: int) -> Slate:
-    return load_live(client(), season=season, week=week, league_id=league_id, username=username,
-                     history_weeks=history_weeks)
+@st.cache_data(ttl=300, show_spinner="Loading your ESPN league...")
+def load_espn_league(season: int, week: int, league_id: str, team_id: int | None, espn_s2: str, swid: str,
+                     history_weeks: int):
+    return load_league(ESPNFantasy(season, espn_s2=espn_s2, swid=swid), league_id, team_id, week, history_weeks)
 
 
 @st.cache_data(show_spinner=False)
@@ -59,49 +62,60 @@ def load_demo(scoring: str, with_roster: bool) -> Slate:
     return demo_slate(scoring=scoring, with_roster=with_roster)
 
 
-def headshot(pid: str, live: bool) -> str | None:
+def headshot(p, live: bool) -> str | None:
     if not live:
         return None
-    if not pid.isdigit():  # team defenses are keyed by team abbreviation
-        return f"https://sleepercdn.com/images/team_logos/nfl/{pid.lower()}.png"
-    return f"https://sleepercdn.com/content/nfl/players/thumb/{pid}.jpg"
+    if p.position == "DEF":
+        return f"https://a.espncdn.com/i/teamlogos/nfl/500/{(p.team or '').lower()}.png"
+    return f"https://a.espncdn.com/i/headshots/nfl/players/full/{p.player_id}.png"
 
 
 # --------------------------------------------------------------- sidebar
 st.sidebar.header("Lineup settings")
 demo = st.sidebar.toggle("Use demo data (offline)", value=False,
-                         help="Fake players, no internet needed. Turn off for real NFL data from Sleeper.")
-
-mode = st.sidebar.radio("Whose lineup?", ["Best possible lineup (any NFL player)",
-                                          "My Sleeper league", "Pick my players"])
+                         help="Fake players, no internet needed. Turn off for real NFL data from ESPN.")
+mode = st.sidebar.radio("Whose lineup?", MODES)
 dream = mode.startswith("Best")
 
 season = week = None
 if not demo:
     try:
-        state = nfl_state()
-        cur_season, cur_week = int(state.get("league_season") or state["season"]), int(state.get("week") or 1)
-    except SleeperError as exc:
-        st.error(f"Couldn't reach the Sleeper API: {exc}\n\nCheck your internet connection, "
+        cur_season = nfl_season()
+        cur_week = espn_week(cur_season)
+    except ESPNError as exc:
+        st.error(f"Couldn't reach ESPN: {exc}\n\nCheck your internet connection, "
                  "or turn on **Use demo data** in the sidebar.")
         st.stop()
     c1, c2 = st.sidebar.columns(2)
     season = c1.number_input("Season", 2018, 2100, cur_season)
     week = c2.number_input("Week", 1, 18, min(max(cur_week, 1), 18))
 
-league_id = username = None
-if mode == "My Sleeper league":
-    league_id = st.sidebar.text_input("League ID", help="The number in sleeper.com/leagues/<LEAGUE_ID>/...")
-    username = st.sidebar.text_input("Sleeper username")
+league_id, espn_s2, swid = "", "", ""
+if mode == "My ESPN league":
+    league_id = st.sidebar.text_input(
+        "ESPN league ID", help="The number after leagueId= in your league's address, e.g. "
+                               "fantasy.espn.com/football/league?leagueId=12345678")
+    with st.sidebar.expander("Private league? Add your ESPN login"):
+        st.caption("Most ESPN leagues are private. ESPN only shares them with a logged-in browser, "
+                   "so paste these two values from yours. They're used only to read your league "
+                   "and aren't saved.")
+        espn_s2 = st.text_input("espn_s2", type="password")
+        swid = st.text_input("SWID", type="password", placeholder="{XXXXXXXX-XXXX-...}")
+        st.markdown("**How do I find these?** On a computer, log in at fantasy.espn.com in Chrome. "
+                    "Open the menu (⋮) → *More tools* → *Developer tools* → *Application* tab → "
+                    "*Cookies* → *https://fantasy.espn.com*. Copy the values of **espn_s2** and **SWID**. "
+                    "(Safari: *Develop* → *Show Web Inspector* → *Storage* → *Cookies*.)")
     if demo:
         st.sidebar.info("Demo mode uses a fake league matchup.")
 
-scoring = "ppr"
+rules = "ESPN PPR"
 slots = list(DEFAULT_SLOTS)
-if mode != "My Sleeper league":
-    scoring = st.sidebar.selectbox("Scoring", ["ppr", "half", "std"],
-                                   format_func={"ppr": "PPR", "half": "Half PPR", "std": "Standard"}.get)
+if mode != "My ESPN league":
+    rules = st.sidebar.selectbox("Scoring", list(DEFAULT_RULES),
+                                 help="ESPN's standard rules: 4 per passing TD, -2 per interception, "
+                                      "6 per rushing/receiving TD, and 1 (PPR), 0.5 or 0 per catch.")
     with st.sidebar.expander("Lineup slots"):
+        st.caption("ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")
         defaults = {s: DEFAULT_SLOTS.count(s) for s in SLOT_TYPES}
         slots = []
         for s in SLOT_TYPES:
@@ -114,28 +128,38 @@ with st.sidebar.expander("Simulation settings"):
     history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
                               help="Used to judge how boom-or-bust each player is.")
     correlated = st.checkbox("Teammates & games are correlated", value=True,
-                             help="A QB and his receivers rise and fall together; a defense "
+                             help="A QB and their receivers rise and fall together; a defense "
                                   "struggles when the offense it faces has a big day.")
     seed = st.number_input("Random seed", 0, 10**6, 42)
 
 # ------------------------------------------------------------ build slate
 banner("nfl", "Fantasy Football Lineups",
-       "Your week, simulated thousands of times. Each player's projection, recent form, injury status and matchup "
-       "become a range of outcomes, and the lineup that comes out ahead most often is the one to start.")
+       "Built for ESPN leagues. Your week is simulated thousands of times from ESPN's projections, each "
+       "player's recent games, injury status and matchup, and the lineup that comes out ahead most often "
+       "is the one to start.")
 try:
     if demo:
-        slate = load_demo(scoring, with_roster=not dream)
-        if mode != "My Sleeper league":
+        slate = load_demo(DEMO_SCORING[rules], with_roster=not dream)
+        if mode != "My ESPN league":
             slate = replace(slate, slots=slots)
-    elif mode == "My Sleeper league":
-        if not (league_id and username):
-            st.info("Enter your **League ID** and **Sleeper username** in the sidebar.")
+    elif mode == "My ESPN league":
+        if not league_id.strip().isdigit():
+            st.info("Enter your **ESPN league ID** in the sidebar. It's the number after **leagueId=** in "
+                    "your league's address on fantasy.espn.com. Private league? Also open "
+                    "**Private league? Add your ESPN login** in the sidebar.")
             st.stop()
-        slate = load_league(league_id.strip(), username.strip(), int(season), int(week), history_weeks)
+        _, teams = load_espn_league(int(season), int(week), league_id.strip(), None, espn_s2, swid, history_weeks)
+        if not teams:
+            st.warning("That league has no teams yet.")
+            st.stop()
+        labels = {t.id: f"{t.name}" + (f"  ({t.owner})" if t.owner else "") for t in teams}
+        team_id = st.selectbox("Which team is yours?", list(labels), format_func=labels.get, key="espn_team")
+        slate, _ = load_espn_league(int(season), int(week), league_id.strip(), int(team_id), espn_s2, swid,
+                                    history_weeks)
     else:
-        slate = load_pool(int(season), int(week), scoring, tuple(slots), history_weeks)
-except SleeperError as exc:
-    st.error(f"Sleeper API error: {exc}")
+        slate = load_pool(int(season), int(week), rules, tuple(slots), history_weeks)
+except ESPNError as exc:
+    st.error(str(exc))
     st.stop()
 
 if not slate.slots:
@@ -157,18 +181,18 @@ if mode == "Pick my players":
     slate = with_rosters(slate, set(mine), set(theirs))
 
 st.caption(f"Season {slate.season} · Week {slate.week} · Scoring: {slate.scoring_name} · "
-           f"Data: {'synthetic demo' if demo else 'live from Sleeper (projections, recent stats, injuries)'}")
+           f"Data: {'synthetic demo' if demo else 'live from ESPN (projections, recent points, injuries)'}")
 for note in slate.notes:
     st.caption(note)
 
 if objective == "win" and (dream or not slate.has_opponent):
     st.info("**Best chance to beat my opponent** needs an opponent, so this run maximizes expected "
-            "points instead. To get a win chance, pick **My Sleeper league** or add your opponent's "
+            "points instead. To get a win chance, pick **My ESPN league** or add your opponent's "
             "players under **Pick my players**.")
     objective = "mean"
 
 params = (demo, mode, slate.season, slate.week, tuple(slate.slots), tuple(sorted(slate.my_ids)),
-          tuple(sorted(slate.opp_ids)), objective, n_sims, history_weeks, correlated, seed, scoring)
+          tuple(sorted(slate.opp_ids)), objective, n_sims, history_weeks, correlated, seed, rules)
 if st.button("Simulate", type="primary") or st.session_state.get("params") == params:
     if st.session_state.get("params") != params:
         with st.spinner(f"Simulating the week {n_sims:,} times..."):
@@ -212,7 +236,7 @@ def table(rows, slots, show_start=True) -> pd.DataFrame:
         if r is None:
             continue
         p = r.player
-        row = {"": headshot(p.player_id, live), "Slot": slot, "Player": p.name, "Pos": p.position,
+        row = {"": headshot(p, live), "Slot": slot, "Player": p.name, "Pos": p.position,
                "Team": p.team or "FA", "Opp": p.opponent or "—", "Projection": p.projection,
                "Sim avg": r.sim_mean, "Bad week": r.p10, "Great week": r.p90,
                "Status": p.injury_status or ""}
@@ -224,7 +248,7 @@ def table(rows, slots, show_start=True) -> pd.DataFrame:
 
 COLCFG = {
     "": st.column_config.ImageColumn("", width="small"),
-    "Projection": st.column_config.NumberColumn(format="%.1f", help="This week's Sleeper projection"),
+    "Projection": st.column_config.NumberColumn(format="%.1f", help="This week's ESPN projection"),
     "Sim avg": st.column_config.NumberColumn(format="%.1f",
                                              help="Simulated average: projection blended with recent form, "
                                                   "including injury risk"),

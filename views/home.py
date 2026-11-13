@@ -56,7 +56,7 @@ st.markdown(f"""
 # ------------------------------------------------------------------- tools
 cards = [
     ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
-     "Who to start this week. Connect your Sleeper league or enter your roster from any site, and see "
+     "Who to start this week. Connect your ESPN league or enter your roster, and see "
      "your chance of beating this week's opponent."),
     ("ncaa", "NCAA · March", "March Madness Bracket", MADNESS, "Open bracket simulator",
      "Title odds for every team and a complete bracket to fill out. Shows a projected field until "
@@ -92,9 +92,9 @@ st.write("")
 eyebrow("The inputs")
 st.header("What each simulator looks at")
 inputs = {
-    "nfl": ["This week's projected stats for every player", "Points scored in each of the last 6 games",
+    "nfl": ["ESPN's projection for every player this week", "Points scored in each of the last 6 games",
             "Injury report (questionable players sit out about 1 week in 5)", "Who plays who, so teammates and "
-            "opponents rise and fall together", "Your league's scoring and lineup rules"],
+            "opponents rise and fall together", "Your ESPN league's scoring and lineup rules (or ESPN's defaults)"],
     "ncaa": ["The final score of every Division I game this season", "Whether each game was home, away or "
              "neutral", "Last season's ratings, early in the year", "The official bracket and results once "
              "the tournament starts"],
@@ -195,6 +195,6 @@ st.caption("Single results, not long-run averages.")
 
 # ------------------------------------------------------------------- footer
 st.divider()
-st.caption("Data: Sleeper public API (NFL), ESPN public scoreboard (college basketball) and the official "
-           "Fantasy Premier League API. Not affiliated with Sleeper, ESPN, the NFL, the NCAA or the Premier "
+st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboard (college basketball) and the official "
+           "Fantasy Premier League API. Not affiliated with ESPN, the NFL, the NCAA or the Premier "
            f"League. For entertainment; no outcome is guaranteed. Version {APP_VERSION}.")

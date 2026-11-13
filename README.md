@@ -3,7 +3,8 @@
 A website with three simulators that play games out thousands of times with
 real data and tell you which choice comes out ahead most often:
 
-* **NFL Fantasy Lineups** (`/football`): who to start this week (Sleeper data).
+* **NFL Fantasy Lineups** (`/football`): who to start this week, built for ESPN leagues
+  (your league's scoring, lineup slots, roster and opponent; ESPN projections).
 * **March Madness** (`/march-madness`): title odds and the best bracket (ESPN data).
 * **Fantasy Premier League** (`/fpl`): best XI, bench order and captain for the
   next gameweek (official FPL API). See [Fantasy Premier League](#fantasy-premier-league).
@@ -39,10 +40,14 @@ You can also launch it from Terminal inside the folder:
 ## The web app
 
 * **Best possible lineup (any NFL player)**: the top lineup across the whole NFL this week.
-* **My Sleeper league**: enter your league id and username. It uses your league's
-  scoring, lineup slots and roster, finds this week's opponent, and shows your win chance.
-* **Pick my players**: for ESPN/Yahoo/etc. Search and add your players (and
-  optionally your opponent's).
+* **My ESPN league**: enter your ESPN league ID (the number after `leagueId=` in
+  your league's address) and pick your team. It uses your league's exact scoring,
+  lineup slots and roster, ESPN's projections, finds this week's opponent, and
+  shows your win chance. Private leagues (ESPN's default) also need the `espn_s2`
+  and `SWID` cookies from a browser logged in to ESPN; the page explains where to
+  find them. They're only used to read your league and are never written to disk.
+* **Pick my players**: search and add your players (and optionally your
+  opponent's), scored with ESPN PPR, Half-PPR or Standard rules.
 
 Results show who to start, each player's projection, bad-week/great-week range,
 how often they were in the best lineup across the simulations, a chart of your
@@ -67,7 +72,7 @@ Start/sit for your Sleeper team (uses your league's scoring and slots, and
 maximizes your chance of beating this week's opponent):
 
 ```bash
-python -m ffmc --league YOUR_LEAGUE_ID --user YOUR_SLEEPER_USERNAME
+python -m ffmc --league YOUR_SLEEPER_LEAGUE_ID --user YOUR_SLEEPER_USERNAME   # the command line still reads Sleeper leagues
 ```
 
 Not on Sleeper (ESPN, Yahoo, ...)? List your players by name (defenses by team

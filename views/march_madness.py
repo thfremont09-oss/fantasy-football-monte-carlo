@@ -33,7 +33,7 @@ def label(t: mm.Team) -> str:
 
 # ------------------------------------------------------------- settings
 banner("ncaa", "March Madness",
-       "The whole 64-team bracket, played out thousands of times. Team ratings come from every Division I "
+       "The whole 64-team bracket, played out 100,000 times. Team ratings come from every Division I "
        "score this season; each game is a weighted coin flip based on the gap between two teams.")
 current = mm.current_season()
 seasons = [s for s in range(current, 2018, -1) if s != 2020]   # no tournament in 2020
@@ -45,7 +45,9 @@ with st.container(key="settings"):
                "actually happened.")
     with st.expander("Simulation settings"):
         s1, s2, s3 = st.columns(3, gap="medium")
-        n_sims = s1.select_slider("Simulated tournaments", [1000, 5000, 10000, 25000, 50000], value=10000)
+        n_sims = s1.select_slider("Simulated tournaments", [10_000, 50_000, 100_000, 250_000], value=100_000,
+                                  format_func=lambda n: f"{n:,}",
+                                  help="More simulations = steadier odds, but slower.")
         game_sd = s2.slider("Upset level", 8.0, 14.0, mm.GAME_SD, 0.5,
                             help="How many points a single game swings by chance. Higher = more upsets.")
         seed = s3.number_input("Random seed", 0, 10**6, 42, key="mm_seed")

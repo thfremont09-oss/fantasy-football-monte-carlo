@@ -1,6 +1,7 @@
 # Monte Carlo Sports Lab
 
-A website with three simulators that play games out thousands of times with
+A website with three simulators that play games out tens of thousands of times
+(50,000 NFL weeks, 100,000 brackets, 25,000 FPL gameweeks by default) with
 real data and tell you which choice comes out ahead most often:
 
 * **NFL Fantasy Lineups** (`/football`): who to start this week, built for ESPN leagues
@@ -104,7 +105,7 @@ Useful options (`python -m ffmc --help` for all):
 | `--scoring ppr\|half\|std\|espn` | scoring preset when not using `--league` (`espn` = ESPN default PPR: interceptions -2) |
 | `--slots "QB,RB,RB,WR,WR,TE,FLEX,SUPER_FLEX,K,DEF"` | custom lineup slots |
 | `--week N --season YYYY` | a different week |
-| `--sims N` | number of simulations (default 10,000) |
+| `--sims N` | number of simulations (default 50,000) |
 | `--seed N` | reproducible results |
 | `--independent` | turn off teammate/game correlation |
 | `--dream` | ignore rosters, use every player |
@@ -168,7 +169,7 @@ scoreboard (`ffmc/espn.py`):
    court. Early in the season, ratings lean on last season's.
 2. **Win chance.** A game's margin swings by about 11 points, so a team rated
    11 points better wins about 84% of the time (the "Upset level" setting).
-3. **Simulation.** The 64-team bracket is played out 10,000+ times; each game is
+3. **Simulation.** The 64-team bracket is played out 100,000 times (up to 250,000); each game is
    a weighted coin flip. The tab shows each team's chance of reaching every
    round, title odds, a head-to-head calculator, and the best bracket (each game
    goes to the team that advanced further more often).
@@ -186,7 +187,7 @@ picked Michigan as the #2 title favorite and scored about 1000 of 1920 points.
 1. **Team strength** from this season's results: goals scored and conceded
    compared with the league average, home and away, pulled toward average early
    in the season.
-2. **Every fixture is played 10,000 times.** Each team's goals are drawn from its
+2. **Every fixture is played 25,000 times** (up to 50,000). Each team's goals are drawn from its
    expected goals; each goal and assist goes to a player on the pitch in
    proportion to their xG / xA per 90. Starting chances come from how often each
    player has started and the injury flag.

@@ -40,7 +40,7 @@ except fpl.FPLError as exc:
 
 deadline = dt.datetime.fromisoformat(gw.deadline.replace("Z", "+00:00"))
 banner("epl", "Fantasy Premier League",
-       "Every fixture of the gameweek is played out thousands of times: goals, assists, clean sheets, "
+       "Every fixture of the gameweek is played out 25,000 times: goals, assists, clean sheets, "
        "saves, defensive contributions and bonus. The XI and captain that come out on top most often "
        "are your best picks.",
        chips=[gw.name, f"Deadline {deadline:%a %d %b, %H:%M} UTC", f"{len(gw.fixtures)} fixtures"])
@@ -71,7 +71,9 @@ with st.container(key="settings"):
             budget = presets[choice]
     with st.expander("Simulation settings"):
         s1, s2 = st.columns(2, gap="medium")
-        n_sims = s1.select_slider("Simulated gameweeks", [2000, 5000, 10000, 20000], value=10000)
+        n_sims = s1.select_slider("Simulated gameweeks", [10_000, 25_000, 50_000], value=25_000,
+                                  format_func=lambda n: f"{n:,}",
+                                  help="More simulations = steadier odds, but slower. Each one plays all 10 matches.")
         seed = s2.number_input("Random seed", 0, 10**6, 42, key="fpl_seed")
 
 for note in gw.notes:

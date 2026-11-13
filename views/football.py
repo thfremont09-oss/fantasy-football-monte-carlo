@@ -72,7 +72,7 @@ def headshot(p, live: bool) -> str | None:
 
 # --------------------------------------------------------------- settings
 banner("nfl", "Fantasy Football Lineups",
-       "Built for ESPN leagues. Your week is simulated thousands of times from ESPN's projections, each "
+       "Built for ESPN leagues. Your week is simulated 50,000 times from ESPN's projections, each "
        "player's recent games, injury status and matchup, and the lineup that comes out ahead most often "
        "is the one to start.")
 
@@ -136,7 +136,9 @@ with st.container(key="settings"):
                 slots += [s] * int(n)
     with (e2 if mode != "My ESPN league" else e1).expander("Simulation settings"):
         objective = st.selectbox("Optimize for", list(OBJECTIVES), format_func=OBJECTIVES.get)
-        n_sims = st.select_slider("Simulations", [1000, 2500, 5000, 10000, 25000], value=10000)
+        n_sims = st.select_slider("Simulated weeks", [10_000, 25_000, 50_000, 100_000], value=50_000,
+                                   format_func=lambda n: f"{n:,}",
+                                   help="More simulations = steadier odds, but slower. 50,000 is plenty for most weeks.")
         history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
                                   help="Used to judge how boom-or-bust each player is.")
         correlated = st.checkbox("Teammates & games are correlated", value=True,

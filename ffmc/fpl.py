@@ -171,7 +171,7 @@ def simulate(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000,
              seed: int | None = None) -> np.ndarray:
     """Return points[sim, player] for ``n_sims`` simulated gameweeks."""
     rng = np.random.default_rng(seed)
-    points = np.zeros((n_sims, len(players)))
+    points = np.zeros((n_sims, len(players)), dtype=np.float32)   # float32: half the memory, plenty of precision
     for fx in gw.fixtures:
         goals = {fx["home"]: rng.poisson(fx["home_xg"], n_sims),      # 1. play the match
                  fx["away"]: rng.poisson(fx["away_xg"], n_sims)}

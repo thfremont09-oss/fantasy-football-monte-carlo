@@ -80,7 +80,14 @@ class Game:
     kalshi_updated: bool = False
     kalshi_series: str | None = None
     draw_ticker: str | None = None
+    path: str = ""                 # ESPN league path, e.g. "basketball/nba"
+    event_id: str = ""             # ESPN event id (differs from the match id in tennis)
     tags: set[str] = field(default_factory=set)
+
+    @property
+    def key(self) -> str:
+        """Identifies the game in a link: path~event~match."""
+        return f"{self.path}~{self.event_id}~{self.id}"
 
     def dk_fair(self) -> list[float] | None:
         """DraftKings' win chances with the bookmaker's cut removed (sides, then draw)."""
@@ -171,7 +178,7 @@ def espn_games(http: CachedJSON, path: str, sport: str, league: str, days: list[
     games = []
     for day in days:
         try:
-            data = http.get(ESPN.format(path=path), [("dates", day.strftime("%Y%m%d")), ("limit", "300")], ttl=25)
+            data = http.get(ESPN.format(path=path), [("dates", day.strftime("%Y%m%d")), ("limit", "300")], ttl=12)
         except APIError:
             continue
         for e in data.get("events", []):
@@ -183,15 +190,103 @@ def espn_games(http: CachedJSON, path: str, sport: str, league: str, days: list[
             for comp in comps:
                 g = _game(comp, e, sport, league)
                 if g:
+                    g.path, g.event_id = path, str(e.get("id", ""))
                     games.append(g)
     return games
+
+
+# ----------------------------------------------------------- game details
+SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/{path}/summary"
+
+
+@dataclass
+class Details:
+    team_stats: list[tuple[str, str, str]] = field(default_factory=list)       # (label, away, home)
+    stats_kind: str = ""                                                        # "Game stats" or "Season averages"
+    leaders: list[tuple[str, list[tuple[str, str, str]]]] = field(default_factory=list)  # category -> (team, name, value)
+    predictor: tuple[float, float] | None = None                                # ESPN matchup predictor (away, home)
+    win_prob: list[tuple[dt.datetime, float]] = field(default_factory=list)    # ESPN model: (time, home win chance)
+    plays: list[tuple[str, str]] = field(default_factory=list)                 # (period/clock, description), newest first
+    last_five: list[tuple[str, list[str]]] = field(default_factory=list)       # team -> results
+    venue: str = ""
+    broadcast: str = ""
+
+
+def game_details(path: str, event_id: str, cache_dir=".ffmc_cache") -> Details:
+    """Stats for one game from ESPN's game summary (box score, leaders, win probability, plays)."""
+    d = Details()
+    if not path or not event_id:
+        return d
+    try:
+        s = CachedJSON(cache_dir).get(SUMMARY.format(path=path), [("event", event_id)], ttl=12)
+    except APIError:
+        return d
+    bs = s.get("boxscore") or {}
+    teams = sorted(bs.get("teams") or [], key=lambda t: {"away": 0, "home": 1}.get(t.get("homeAway"), 0))
+    if len(teams) == 2:
+        rows: dict[str, list[str]] = {}
+        for i, t in enumerate(teams):
+            for st in t.get("statistics") or []:
+                label = st.get("label") or st.get("displayName") or st.get("name", "")
+                rows.setdefault(label, ["", ""])[i] = str(st.get("displayValue", ""))
+        d.team_stats = [(k, a, h) for k, (a, h) in rows.items() if a or h]
+        state = ((s.get("header") or {}).get("competitions") or [{}])[0].get("status", {}).get("type", {}).get("state")
+        d.stats_kind = "Season averages" if state == "pre" else "Game stats"
+    for team_block in s.get("leaders") or []:
+        abbr = (team_block.get("team") or {}).get("abbreviation", "")
+        for cat in team_block.get("leaders") or []:
+            top = (cat.get("leaders") or [None])[0]
+            if not top:
+                continue
+            name = (top.get("athlete") or {}).get("displayName", "")
+            entry = next((c for c in d.leaders if c[0] == cat.get("displayName")), None)
+            if entry is None:
+                entry = (cat.get("displayName") or cat.get("name", ""), [])
+                d.leaders.append(entry)
+            entry[1].append((abbr, name, str(top.get("displayValue", ""))))
+    pred = s.get("predictor") or {}
+    try:
+        d.predictor = (float(pred["awayTeam"]["gameProjection"]) / 100, float(pred["homeTeam"]["gameProjection"]) / 100)
+    except (KeyError, TypeError, ValueError):
+        pass
+    plays = s.get("plays") or []
+    when = {}
+    for p in plays:
+        if p.get("wallclock"):
+            try:
+                when[str(p.get("id"))] = dt.datetime.fromisoformat(p["wallclock"].replace("Z", "+00:00"))
+            except ValueError:
+                pass
+    for w in s.get("winprobability") or []:
+        t = when.get(str(w.get("playId")))
+        if t is not None and w.get("homeWinPercentage") is not None:
+            d.win_prob.append((t, float(w["homeWinPercentage"])))
+    for p in reversed(plays[-12:]):
+        per = (p.get("period") or {}).get("displayValue") or (f"P{p['period'].get('number')}" if p.get("period") else "")
+        clock = (p.get("clock") or {}).get("displayValue", "")
+        d.plays.append((" ".join(x for x in (per, clock) if x), p.get("text", "")))
+    for team_block in s.get("lastFiveGames") or []:
+        abbr = (team_block.get("team") or {}).get("abbreviation", "")
+        results = []
+        for ev in team_block.get("events") or []:
+            opp = (ev.get("opponent") or {}).get("abbreviation", "")
+            results.append(f"{ev.get('gameResult', '')} {ev.get('score', '')} {ev.get('atVs', '')} {opp}".strip())
+        if results:
+            d.last_five.append((abbr, results))
+    info = s.get("gameInfo") or {}
+    d.venue = (info.get("venue") or {}).get("fullName", "")
+    bc = s.get("broadcasts") or []
+    if bc:
+        names = bc[0].get("media", {}).get("shortName") or ", ".join(bc[0].get("names", []) or [])
+        d.broadcast = names or ""
+    return d
 
 
 # ---------------------------------------------------------------- Kalshi side
 def kalshi_prices(http: CachedJSON, series: str) -> dict[str, list[dict]]:
     """Open Kalshi winner markets for a series, grouped by event."""
     try:
-        data = http.get(KALSHI, [("series_ticker", series), ("status", "open"), ("limit", "1000")], ttl=25)
+        data = http.get(KALSHI, [("series_ticker", series), ("status", "open"), ("limit", "1000")], ttl=12)
     except APIError:
         return {}
     events: dict[str, list[dict]] = {}

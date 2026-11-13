@@ -73,6 +73,55 @@ def test_search_matches_teams_and_leagues():
     assert not g.matches("lakers")
 
 
+SUMMARY = {
+    "header": {"competitions": [{"status": {"type": {"state": "in"}}}]},
+    "boxscore": {"teams": [
+        {"homeAway": "home", "statistics": [{"label": "Total Yards", "displayValue": "310"}]},
+        {"homeAway": "away", "statistics": [{"label": "Total Yards", "displayValue": "255"}]}]},
+    "leaders": [{"team": {"abbreviation": "DET"}, "leaders": [{"displayName": "Passing Yards", "leaders": [
+        {"athlete": {"displayName": "Jared Goff"}, "displayValue": "201 YDS"}]}]},
+        {"team": {"abbreviation": "NE"}, "leaders": [{"displayName": "Passing Yards", "leaders": [
+            {"athlete": {"displayName": "Drake Maye"}, "displayValue": "180 YDS"}]}]}],
+    "predictor": {"awayTeam": {"gameProjection": "38.0"}, "homeTeam": {"gameProjection": "62.0"}},
+    "plays": [{"id": "1", "wallclock": "2026-11-15T18:05:00Z", "text": "Kickoff", "period": {"number": 1},
+               "clock": {"displayValue": "15:00"}},
+              {"id": "2", "wallclock": "2026-11-15T18:06:00Z", "text": "Goff pass complete", "period": {"number": 1},
+               "clock": {"displayValue": "14:20"}}],
+    "winprobability": [{"playId": "1", "homeWinPercentage": 0.6}, {"playId": "2", "homeWinPercentage": 0.63}],
+    "lastFiveGames": [{"team": {"abbreviation": "DET"}, "events": [
+        {"gameResult": "W", "score": "31-20", "atVs": "vs", "opponent": {"abbreviation": "CHI"}}]}],
+    "gameInfo": {"venue": {"fullName": "Ford Field"}},
+    "broadcasts": [{"media": {"shortName": "FOX"}}],
+}
+
+
+def test_game_details_parses_espn_summary(monkeypatch):
+    monkeypatch.setattr(live.CachedJSON, "get", lambda self, url, params=None, **kw: SUMMARY)
+    d = live.game_details("football/nfl", "1")
+    assert d.team_stats == [("Total Yards", "255", "310")] and d.stats_kind == "Game stats"
+    assert d.leaders == [("Passing Yards", [("DET", "Jared Goff", "201 YDS"), ("NE", "Drake Maye", "180 YDS")])]
+    assert d.predictor == pytest.approx((0.38, 0.62))
+    assert [p for _, p in d.win_prob] == [0.6, 0.63] and d.win_prob[0][0].tzinfo is not None
+    assert d.plays[0] == ("P1 14:20", "Goff pass complete")
+    assert d.last_five == [("DET", ["W 31-20 vs CHI"])]
+    assert d.venue == "Ford Field" and d.broadcast == "FOX"
+
+
+def test_game_details_handles_missing_summary(monkeypatch):
+    def boom(self, *a, **kw):
+        raise live.APIError("404")
+    monkeypatch.setattr(live.CachedJSON, "get", boom)
+    d = live.game_details("mma/ufc", "1")
+    assert not d.team_stats and d.predictor is None and not d.plays
+
+
+def test_game_key_round_trips():
+    e = event()
+    g = live._game(e["competitions"][0], e, "Football", "NFL")
+    g.path, g.event_id = "football/nfl", "1"
+    assert g.key == "football/nfl~1~1"
+
+
 def test_surname_matching_for_tennis():
     assert live._same("Fritz", "Taylor Fritz") and live._same("T. Fritz", "Taylor Fritz")
     assert not live._same("Fritz", "Musetti")

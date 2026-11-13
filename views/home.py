@@ -59,7 +59,7 @@ st.markdown(f"""
 cards = [
     ("live", "Every league · Right now", "Live Odds", LIVE, "Open Live Odds",
      "Scores for the top leagues worldwide with DraftKings and Kalshi odds side by side, live win chances, "
-     "search, and charts of how the odds moved."),
+     "search, and a page for every game with stats and a live odds chart, updated every 15 seconds."),
     ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
      "Who to start this week. Connect your ESPN league or enter your roster, and see "
      "your chance of beating this week's opponent."),

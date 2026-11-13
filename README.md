@@ -265,7 +265,11 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
 * **Kalshi** win chances (mid of bid and ask), which keep trading during games,
   matched to each game by team / player names and time.
 * Search by team, player or league; filter by live / upcoming / final and by
-  league; auto-refresh every 30 seconds.
-* **Odds chart:** Kalshi's win chance over time for any game (minute by minute
-  for the last 6-24 hours, or hourly over 3 days), with DraftKings' line
-  (bookmaker's cut removed) as a dashed reference.
+  league; auto-refresh every 15 seconds.
+* **Click any game** (`?game=<path>~<event>~<id>`) for its own page, also
+  refreshing every 15 seconds: big scoreboard with venue and TV, both apps' odds,
+  a **live odds chart** (Kalshi's win chance minute by minute or hourly, ESPN's
+  win-probability model as dotted lines, DraftKings' no-vig line dashed), and
+  stats from ESPN's game summary: team stats (season averages before kick-off),
+  leaders, ESPN's matchup predictor, recent plays and each team's last five.
+  Tennis and UFC have no ESPN summary, so they show score, odds and chart.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13d"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13e"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -37,13 +37,9 @@ header[data-testid="stHeader"] {{ background: transparent; height: 0; }}
 header[data-testid="stHeader"] * {{ pointer-events: none !important; }}
 header[data-testid="stHeader"] button, header[data-testid="stHeader"] button *,
 header[data-testid="stHeader"] a, header[data-testid="stHeader"] a * {{ pointer-events: auto !important; }}
-/* The sidebar toggle sits on the navy header: make it visible and say what it is. */
-[data-testid="stExpandSidebarButton"] {{ background: rgba(255,255,255,.12) !important; border-radius: 6px;
-  min-height: 40px; padding: 0 .7rem 0 .4rem !important; width: auto !important; }}
-[data-testid="stExpandSidebarButton"] * {{ color: #fff !important; }}
-[data-testid="stExpandSidebarButton"]::after {{ content: "Settings"; color: #fff; font-weight: 600; font-size: .9rem;
-  margin-left: .2rem; }}
-@media (max-width: 899px) {{ .stApp:has([data-testid="stSidebar"]) .st-key-site_header {{ padding-top: 3.6rem; }} }}
+/* No sidebar: every page keeps its settings in a panel at the top, so nothing can be
+   closed by accident or cut off by a narrow column. */
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="stExpandSidebarButton"] {{ display: none !important; }}
 a, button {{ touch-action: manipulation; }}
 
 /* ---------- site header (full-width navy band) ---------- */
@@ -108,6 +104,13 @@ a[data-testid="stPageLink-NavLink"] {{ min-height: 44px; display: flex; align-it
 [data-testid="stTextInputField"], [data-testid="stNumberInputField"], .stTextInput input, .stNumberInput input {{ min-height: 44px; }}
 [data-testid="stNumberInput"] button {{ min-width: 44px; min-height: 44px; }}
 [data-testid="stSegmentedControl"] button, .stPills button {{ min-height: 44px; }}
+
+/* ---------- settings panel ---------- */
+.st-key-settings {{ background: #fff; border: 1px solid {BORDER}; border-radius: 10px; padding: 1rem 1.1rem 1.1rem !important;
+  margin-bottom: 1.2rem; }}
+.st-key-settings label p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
+.st-key-settings [data-testid="stPills"] button {{ min-height: 44px; padding: 0 1rem; }}
+.st-key-settings [data-testid="stPills"] button p {{ font-size: .98rem; font-weight: 600; }}
 
 /* ---------- type ---------- */
 h1, h2, h3, .banner h1 {{ font-family: "Barlow Condensed", sans-serif !important; letter-spacing: .01em; }}

@@ -9,7 +9,8 @@ real data and tell you which choice comes out ahead most often:
 * **Fantasy Premier League** (`/fpl`): best XI, bench order and captain for the
   next gameweek (official FPL API). See [Fantasy Premier League](#fantasy-premier-league).
 
-The homepage explains each model in plain English. Pages live in `views/`; the
+The homepage explains each model in plain English. Each tool keeps its settings
+in a panel at the top of its page (there is no sidebar). Pages live in `views/`; the
 header, menu and colors are in `app.py` and `ffmc/ui.py`; fonts and base colors
 in `.streamlit/config.toml`.
 
@@ -195,5 +196,9 @@ picked Michigan as the #2 title favorite and scored about 1000 of 1920 points.
 
 The page shows the best XI on a pitch, bench order, captain odds (how often each
 player topped the XI) and win/draw/loss and clean-sheet odds for every fixture.
+For the best XI from every player, pick a budget: **No budget**, **£100.0m** (FPL's
+starting budget), **£102.0m**, **£103.5m**, **£105.0m** (typical mid-season team
+values) or **Custom**. The budget covers the full 15-player squad: the XI plus the
+cheapest legal bench (2 GK, 5 DEF, 5 MID, 3 FWD, max 3 per club).
 Enter your FPL team ID to pick from your own squad. FPL only publishes a squad
 after a deadline passes, so transfers made since the last deadline aren't seen.

@@ -27,21 +27,9 @@ def load_team(gw: fpl.Gameweek, team_id: int):
 
 
 @st.cache_data(show_spinner="Simulating the gameweek...")
-def simulate(gw: fpl.Gameweek, n_sims: int, seed: int, squad: tuple[int, ...] | None):
-    return fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None)
+def simulate(gw: fpl.Gameweek, n_sims: int, seed: int, squad: tuple[int, ...] | None, budget: float | None):
+    return fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None, budget)
 
-
-# ---------------------------------------------------------------- sidebar
-st.sidebar.header("Team settings")
-mode = st.sidebar.radio("Whose team?", ["Best XI this gameweek", "My FPL team"])
-team_id = None
-if mode == "My FPL team":
-    raw = st.sidebar.text_input("FPL team ID", help="The number in your Points page address: "
-                                "fantasy.premierleague.com/entry/1234567/event/10")
-    team_id = int(raw) if raw.strip().isdigit() else None
-with st.sidebar.expander("Simulation settings"):
-    n_sims = st.select_slider("Simulated gameweeks", [2000, 5000, 10000, 20000], value=10000)
-    seed = st.number_input("Random seed", 0, 10**6, 42, key="fpl_seed")
 
 # ------------------------------------------------------------------- data
 try:
@@ -56,6 +44,36 @@ banner("epl", "Fantasy Premier League",
        "saves, defensive contributions and bonus. The XI and captain that come out on top most often "
        "are your best picks.",
        chips=[gw.name, f"Deadline {deadline:%a %d %b, %H:%M} UTC", f"{len(gw.fixtures)} fixtures"])
+
+# --------------------------------------------------------------- settings
+with st.container(key="settings"):
+    mode = st.pills("Whose team?", ["Best XI this gameweek", "My FPL team"], default="Best XI this gameweek",
+                    required=True, key="fpl_mode")
+    team_id = None
+    budget = None
+    if mode == "My FPL team":
+        c1, _ = st.columns(2, gap="medium")
+        raw = c1.text_input("FPL team ID", help="The number in your Points page address: "
+                            "fantasy.premierleague.com/entry/1234567/event/10")
+        team_id = int(raw) if raw.strip().isdigit() else None
+    else:
+        presets = {"No budget": None, "£100.0m (FPL start)": 100.0, "£102.0m": 102.0, "£103.5m": 103.5,
+                   "£105.0m": 105.0, "Custom": "custom"}
+        choice = st.pills("Budget", list(presets), default="£100.0m (FPL start)", required=True,
+                          key="fpl_budget_choice",
+                          help="Everyone starts FPL with £100.0m. As player prices rise your team value grows, so "
+                               "most managers have £100-105m by mid-season (your Transfers page shows yours). "
+                               "The budget covers the full 15-player squad: the XI plus the cheapest legal bench.")
+        if presets[choice] == "custom":
+            budget = st.number_input("Your budget (£m)", min_value=60.0, max_value=200.0, value=fpl.DEFAULT_BUDGET,
+                                     step=0.1, format="%.1f")
+        else:
+            budget = presets[choice]
+    with st.expander("Simulation settings"):
+        s1, s2 = st.columns(2, gap="medium")
+        n_sims = s1.select_slider("Simulated gameweeks", [2000, 5000, 10000, 20000], value=10000)
+        seed = s2.number_input("Random seed", 0, 10**6, 42, key="fpl_seed")
+
 for note in gw.notes:
     st.caption(note)
 
@@ -63,7 +81,7 @@ squad = None
 team_name = None
 if mode == "My FPL team":
     if not team_id:
-        st.info("Enter your **FPL team ID** in the sidebar. It's the number in the address of your "
+        st.info("Enter your **FPL team ID** above. It's the number in the address of your "
                 "Points page, e.g. fantasy.premierleague.com/entry/**1234567**/event/10.")
         st.stop()
     try:
@@ -74,7 +92,12 @@ if mode == "My FPL team":
     for note in notes:
         st.caption(note)
 
-res = simulate(gw, n_sims, int(seed), tuple(squad) if squad else None)
+try:
+    res = simulate(gw, n_sims, int(seed), tuple(squad) if squad else None, budget)
+except fpl.FPLError as exc:
+    st.error(str(exc))
+    st.stop()
+
 P = gw.players
 
 # --------------------------------------------------------------- headline
@@ -85,8 +108,14 @@ cols[1].metric("Captain", P[res.captain].name)
 cols[1].caption(f"Vice-captain: {P[res.vice].name}")
 cols[2].metric("Bad week (10th pct)", f"{p10:.0f}")
 cols[3].metric("Great week (90th pct)", f"{p90:.0f}")
-st.caption(f"{team_name}: best XI from your 15." if team_name else
-           "Best XI from every player (prices ignored, max 3 per club).")
+if team_name:
+    st.caption(f"{team_name}: best XI from your 15.")
+elif res.squad_cost is not None:
+    xi_cost = sum(P[i].price for i in res.xi)
+    st.caption(f"Full 15-player squad costs **£{res.squad_cost:.1f}m** of your £{budget:.1f}m "
+               f"(starting XI £{xi_cost:.1f}m + cheapest legal bench). Max 3 players per club.")
+else:
+    st.caption("Best XI from every player, prices ignored (max 3 per club).")
 
 
 # ------------------------------------------------------------------ pitch

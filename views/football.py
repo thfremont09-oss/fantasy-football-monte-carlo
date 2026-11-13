@@ -70,73 +70,81 @@ def headshot(p, live: bool) -> str | None:
     return f"https://a.espncdn.com/i/headshots/nfl/players/full/{p.player_id}.png"
 
 
-# --------------------------------------------------------------- sidebar
-st.sidebar.header("Lineup settings")
-demo = st.sidebar.toggle("Use demo data (offline)", value=False,
-                         help="Fake players, no internet needed. Turn off for real NFL data from ESPN.")
-mode = st.sidebar.radio("Whose lineup?", MODES)
-dream = mode.startswith("Best")
-
-season = week = None
-if not demo:
-    try:
-        cur_season = nfl_season()
-        cur_week = espn_week(cur_season)
-    except ESPNError as exc:
-        st.error(f"Couldn't reach ESPN: {exc}\n\nCheck your internet connection, "
-                 "or turn on **Use demo data** in the sidebar.")
-        st.stop()
-    c1, c2 = st.sidebar.columns(2)
-    season = c1.number_input("Season", 2018, 2100, cur_season)
-    week = c2.number_input("Week", 1, 18, min(max(cur_week, 1), 18))
-
-league_id, espn_s2, swid = "", "", ""
-if mode == "My ESPN league":
-    league_id = st.sidebar.text_input(
-        "ESPN league ID", help="The number after leagueId= in your league's address, e.g. "
-                               "fantasy.espn.com/football/league?leagueId=12345678")
-    with st.sidebar.expander("Private league? Add your ESPN login"):
-        st.caption("Most ESPN leagues are private. ESPN only shares them with a logged-in browser, "
-                   "so paste these two values from yours. They're used only to read your league "
-                   "and aren't saved.")
-        espn_s2 = st.text_input("espn_s2", type="password")
-        swid = st.text_input("SWID", type="password", placeholder="{XXXXXXXX-XXXX-...}")
-        st.markdown("**How do I find these?** On a computer, log in at fantasy.espn.com in Chrome. "
-                    "Open the menu (⋮) → *More tools* → *Developer tools* → *Application* tab → "
-                    "*Cookies* → *https://fantasy.espn.com*. Copy the values of **espn_s2** and **SWID**. "
-                    "(Safari: *Develop* → *Show Web Inspector* → *Storage* → *Cookies*.)")
-    if demo:
-        st.sidebar.info("Demo mode uses a fake league matchup.")
-
-rules = "ESPN PPR"
-slots = list(DEFAULT_SLOTS)
-if mode != "My ESPN league":
-    rules = st.sidebar.selectbox("Scoring", list(DEFAULT_RULES),
-                                 help="ESPN's standard rules: 4 per passing TD, -2 per interception, "
-                                      "6 per rushing/receiving TD, and 1 (PPR), 0.5 or 0 per catch.")
-    with st.sidebar.expander("Lineup slots"):
-        st.caption("ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")
-        defaults = {s: DEFAULT_SLOTS.count(s) for s in SLOT_TYPES}
-        slots = []
-        for s in SLOT_TYPES:
-            n = st.number_input(SLOT_LABELS.get(s, s), 0, 4, defaults[s], key=f"slot_{s}")
-            slots += [s] * int(n)
-
-with st.sidebar.expander("Simulation settings"):
-    objective = st.selectbox("Optimize for", list(OBJECTIVES), format_func=OBJECTIVES.get)
-    n_sims = st.select_slider("Simulations", [1000, 2500, 5000, 10000, 25000], value=10000)
-    history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
-                              help="Used to judge how boom-or-bust each player is.")
-    correlated = st.checkbox("Teammates & games are correlated", value=True,
-                             help="A QB and their receivers rise and fall together; a defense "
-                                  "struggles when the offense it faces has a big day.")
-    seed = st.number_input("Random seed", 0, 10**6, 42)
-
-# ------------------------------------------------------------ build slate
+# --------------------------------------------------------------- settings
 banner("nfl", "Fantasy Football Lineups",
        "Built for ESPN leagues. Your week is simulated thousands of times from ESPN's projections, each "
        "player's recent games, injury status and matchup, and the lineup that comes out ahead most often "
        "is the one to start.")
+
+with st.container(key="settings"):
+    mode = st.pills("Whose lineup?", MODES, default=MODES[0], required=True, key="nfl_mode")
+    dream = mode.startswith("Best")
+
+    league_id, espn_s2, swid = "", "", ""
+    rules = "ESPN PPR"
+    if mode == "My ESPN league":
+        c1, c2, c3 = st.columns([2, 1, 1], gap="medium")
+        league_id = c1.text_input(
+            "ESPN league ID", help="The number after leagueId= in your league's address, e.g. "
+                                   "fantasy.espn.com/football/league?leagueId=12345678")
+    else:
+        c1, c2, c3 = st.columns([2, 1, 1], gap="medium")
+        rules = c1.selectbox("Scoring", list(DEFAULT_RULES),
+                             help="ESPN's standard rules: 4 per passing TD, -2 per interception, "
+                                  "6 per rushing/receiving TD, and 1 (PPR), 0.5 or 0 per catch.")
+
+    with st.expander("Advanced: season, week, demo data"):
+        demo = st.toggle("Use demo data (offline)", value=False,
+                         help="Fake players, no internet needed. Turn off for real NFL data from ESPN.")
+    season = week = None
+    if not demo:
+        try:
+            cur_season = nfl_season()
+            cur_week = espn_week(cur_season)
+        except ESPNError as exc:
+            st.error(f"Couldn't reach ESPN: {exc}\n\nCheck your internet connection, "
+                     "or turn on **Use demo data** under Advanced.")
+            st.stop()
+        season = c2.number_input("Season", 2018, 2100, cur_season)
+        week = c3.number_input("Week", 1, 18, min(max(cur_week, 1), 18))
+
+    if mode == "My ESPN league":
+        with st.expander("Private league? Add your ESPN login"):
+            st.caption("Most ESPN leagues are private. ESPN only shares them with a logged-in browser, "
+                       "so paste these two values from yours. They're used only to read your league "
+                       "and aren't saved.")
+            k1, k2 = st.columns(2, gap="medium")
+            espn_s2 = k1.text_input("espn_s2", type="password")
+            swid = k2.text_input("SWID", type="password", placeholder="{XXXXXXXX-XXXX-...}")
+            st.markdown("**How do I find these?** On a computer, log in at fantasy.espn.com in Chrome. "
+                        "Open the menu (⋮) → *More tools* → *Developer tools* → *Application* tab → "
+                        "*Cookies* → *https://fantasy.espn.com*. Copy the values of **espn_s2** and **SWID**. "
+                        "(Safari: *Develop* → *Show Web Inspector* → *Storage* → *Cookies*.)")
+        if demo:
+            st.info("Demo mode uses a fake league matchup.")
+
+    slots = list(DEFAULT_SLOTS)
+    e1, e2 = st.columns(2, gap="medium")
+    if mode != "My ESPN league":
+        with e1.expander("Lineup slots"):
+            st.caption("ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")
+            defaults = {s: DEFAULT_SLOTS.count(s) for s in SLOT_TYPES}
+            slots = []
+            g1, g2 = st.columns(2)
+            for k, s in enumerate(SLOT_TYPES):
+                n = (g1 if k % 2 == 0 else g2).number_input(SLOT_LABELS.get(s, s), 0, 4, defaults[s], key=f"slot_{s}")
+                slots += [s] * int(n)
+    with (e2 if mode != "My ESPN league" else e1).expander("Simulation settings"):
+        objective = st.selectbox("Optimize for", list(OBJECTIVES), format_func=OBJECTIVES.get)
+        n_sims = st.select_slider("Simulations", [1000, 2500, 5000, 10000, 25000], value=10000)
+        history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
+                                  help="Used to judge how boom-or-bust each player is.")
+        correlated = st.checkbox("Teammates & games are correlated", value=True,
+                                 help="A QB and their receivers rise and fall together; a defense "
+                                      "struggles when the offense it faces has a big day.")
+        seed = st.number_input("Random seed", 0, 10**6, 42)
+
+# ------------------------------------------------------------ build slate
 try:
     if demo:
         slate = load_demo(DEMO_SCORING[rules], with_roster=not dream)
@@ -144,9 +152,9 @@ try:
             slate = replace(slate, slots=slots)
     elif mode == "My ESPN league":
         if not league_id.strip().isdigit():
-            st.info("Enter your **ESPN league ID** in the sidebar. It's the number after **leagueId=** in "
+            st.info("Enter your **ESPN league ID** above. It's the number after **leagueId=** in "
                     "your league's address on fantasy.espn.com. Private league? Also open "
-                    "**Private league? Add your ESPN login** in the sidebar.")
+                    "**Private league? Add your ESPN login** above.")
             st.stop()
         _, teams = load_espn_league(int(season), int(week), league_id.strip(), None, espn_s2, swid, history_weeks)
         if not teams:
@@ -163,7 +171,7 @@ except ESPNError as exc:
     st.stop()
 
 if not slate.slots:
-    st.warning("Add at least one lineup slot in the sidebar.")
+    st.warning("Add at least one lineup slot under **Lineup slots**.")
     st.stop()
 
 if mode == "Pick my players":

@@ -274,6 +274,101 @@ def pick_xi(values: np.ndarray, players: list[FPLPlayer], allowed: np.ndarray | 
     return xi
 
 
+SQUAD_SIZE = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}     # a full FPL squad: 15 players
+DEFAULT_BUDGET = 100.0                                      # £m
+
+
+def _valid_xi(xi: list[int], players: list[FPLPlayer]) -> bool:
+    count = {p: 0 for p in XI_LIMITS}
+    clubs: dict[int, int] = {}
+    for i in xi:
+        count[players[i].position] += 1
+        clubs[players[i].team] = clubs.get(players[i].team, 0) + 1
+    return (len(xi) == 11 and all(lo <= count[p] <= hi for p, (lo, hi) in XI_LIMITS.items())
+            and max(clubs.values()) <= MAX_PER_CLUB)
+
+
+def _cheapest_bench(xi: list[int], players: list[FPLPlayer], by_price: dict[str, list[int]]):
+    """The 4 cheapest players that complete a legal 15-man squad around ``xi``."""
+    taken = set(xi)
+    clubs: dict[int, int] = {}
+    for i in xi:
+        clubs[players[i].team] = clubs.get(players[i].team, 0) + 1
+    bench, cost = [], 0.0
+    for pos, size in SQUAD_SIZE.items():
+        need = size - sum(players[i].position == pos for i in xi)
+        for i in by_price[pos]:
+            if need <= 0:
+                break
+            if i in taken or clubs.get(players[i].team, 0) >= MAX_PER_CLUB:
+                continue
+            bench.append(i)
+            clubs[players[i].team] = clubs.get(players[i].team, 0) + 1
+            need -= 1
+            cost += players[i].price
+        if need > 0:
+            return None, float("inf")
+    return bench, cost
+
+
+def pick_squad(values: np.ndarray, players: list[FPLPlayer], budget: float = DEFAULT_BUDGET):
+    """Best XI whose full 15-man squad (XI + cheapest legal bench) fits ``budget`` (£m).
+
+    Starts from the best XI with no budget, then makes the swaps that give up the
+    fewest points per £ saved until it fits, then spends any money left over on
+    upgrades. Returns (xi, bench, squad cost).
+    """
+    by_price = {pos: sorted((i for i, p in enumerate(players) if p.position == pos),
+                            key=lambda i: (players[i].price, -values[i])) for pos in SQUAD_SIZE}
+    # Swap candidates: the best players in each position, plus the cheapest ones.
+    cands = set()
+    for pos in SQUAD_SIZE:
+        ranked = sorted((i for i, p in enumerate(players) if p.position == pos), key=lambda i: -values[i])
+        cands |= set(ranked[:45]) | set(by_price[pos][:12])
+
+    def total(xi):
+        bench, bench_cost = _cheapest_bench(xi, players, by_price)
+        return sum(players[i].price for i in xi) + bench_cost, bench
+
+    xi = pick_xi(values, players)
+    cost, bench = total(xi)
+    while cost > budget + 1e-9:                                   # 1. trim until it fits
+        best = None
+        for k, i in enumerate(xi):
+            for j in cands:
+                if j in xi:
+                    continue
+                new = xi[:k] + [j] + xi[k + 1:]
+                if not _valid_xi(new, players):
+                    continue
+                c, b = total(new)
+                saved = cost - c
+                if saved <= 0 or b is None:
+                    continue
+                loss = (values[i] - values[j]) / saved
+                if best is None or loss < best[0]:
+                    best = (loss, new, c, b)
+        if best is None:
+            raise FPLError(f"No legal squad fits a £{budget:.1f}m budget.")
+        _, xi, cost, bench = best
+    while True:                                                   # 2. spend what's left
+        best = None
+        for k, i in enumerate(xi):
+            for j in cands:
+                if j in xi or values[j] <= values[i]:
+                    continue
+                new = xi[:k] + [j] + xi[k + 1:]
+                if not _valid_xi(new, players):
+                    continue
+                c, b = total(new)
+                if c <= budget + 1e-9 and b is not None and (best is None or values[j] - values[i] > best[0]):
+                    best = (values[j] - values[i], new, c, b)
+        if best is None:
+            break
+        _, xi, cost, bench = best
+    return xi, bench, cost
+
+
 @dataclass
 class Result:
     xi: list[int]
@@ -286,18 +381,23 @@ class Result:
     best_captain_pct: np.ndarray    # share of sims in which the player outscored the rest of the XI
     in_best_xi_pct: np.ndarray      # share of sims in which the player made the hindsight-best XI
     totals: np.ndarray          # simulated XI totals, captain doubled
+    squad_cost: float | None = None  # £m, when a budget was used
 
 
 def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000, seed: int | None = None,
-        squad: list[int] | None = None) -> Result:
+        squad: list[int] | None = None, budget: float | None = None) -> Result:
     """Simulate the gameweek and pick the XI, bench and captain.
 
     ``squad``: indices of your 15 players. Without it, the best XI from every
-    player is chosen (prices ignored).
+    player is chosen; with ``budget`` (£m) the whole 15-man squad must fit it.
     """
     sims = simulate(gw, players, n_sims, seed)
     mean = sims.mean(axis=0)
     allowed = None
+    squad_cost = None
+    if squad is None and budget is not None:
+        xi, bench_pick, squad_cost = pick_squad(mean, players, budget)
+        squad = xi + bench_pick
     if squad is not None:
         allowed = np.zeros(len(players), bool)
         allowed[squad] = True
@@ -318,7 +418,8 @@ def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000, seed: int 
 
     totals = xi_sims.sum(axis=1) + sims[:, captain]
     return Result(xi, bench, captain, vice, mean, np.percentile(sims, 10, axis=0),
-                  np.percentile(sims, 90, axis=0), 100 * top / n_sims, 100 * in_best / len(sample), totals)
+                  np.percentile(sims, 90, axis=0), 100 * top / n_sims, 100 * in_best / len(sample), totals,
+                  squad_cost)
 
 
 def load_squad(client: FPLClient, gw: Gameweek, team_id: int) -> tuple[list[int], str, list[str]]:

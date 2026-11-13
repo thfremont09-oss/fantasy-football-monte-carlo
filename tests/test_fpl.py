@@ -91,3 +91,28 @@ def test_team_strengths_shrink_toward_average():
     att, dfn, _, _ = fpl.team_strengths(fixtures, [1, 2])
     assert att[1] > 1 > att[2] and dfn[2] > 1 > dfn[1]
     assert att[1] < 2      # one game can't make a team twice as good
+
+
+def test_budget_squad_is_legal_and_affordable():
+    players = []
+    for t in range(1, 7):
+        for k, pos in enumerate(["GK", "GK", "DEF", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD", "FWD"]):
+            p = player(t * 100 + k, pos, t, xg={"GK": 0, "DEF": .05, "MID": .3, "FWD": .5}[pos] + .02 * t)
+            p.price = 4.0 + 0.4 * t + 0.5 * (k % 3)          # better clubs cost more
+            players.append(p)
+    gw = gameweek(players)
+    gw.fixtures = [{"home": a, "away": a + 1, "home_xg": 1.4, "away_xg": 1.2} for a in (1, 3, 5)]
+    free = fpl.run(gw, players, 1500, seed=1)
+    free_cost = fpl.run(gw, players, 1500, seed=1, budget=500.0).squad_cost
+    budget = free_cost - 3.0                     # tighter than the unconstrained best squad
+    tight = fpl.run(gw, players, 1500, seed=1, budget=budget)
+    assert tight.squad_cost is not None and tight.squad_cost <= budget + 1e-9
+    squad = tight.xi + tight.bench
+    assert len(squad) == 15 and len(set(squad)) == 15
+    for pos, n in fpl.SQUAD_SIZE.items():
+        assert sum(players[i].position == pos for i in squad) == n
+    teams = [players[i].team for i in squad]
+    assert max(teams.count(t) for t in set(teams)) <= fpl.MAX_PER_CLUB
+    assert tight.mean[tight.xi].sum() <= free.mean[free.xi].sum() + 1e-9
+    with pytest.raises(fpl.FPLError):
+        fpl.run(gw, players, 500, seed=1, budget=40.0)

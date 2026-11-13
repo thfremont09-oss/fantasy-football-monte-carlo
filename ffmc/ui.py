@@ -80,12 +80,13 @@ a, button {{ touch-action: manipulation; }}
 .st-key-site_header [data-testid="stPopover"] button * {{ color: #fff !important; }}
 /* light / dark switch */
 .st-key-site_header [data-testid="stColumn"]:has(.st-key-theme_col) {{ flex: 0 0 auto !important; width: auto !important; }}
-.st-key-theme_col button {{ min-height: 46px; padding: 0 .9rem; background: transparent !important;
-  border: 1px solid rgba(255,255,255,.35) !important; min-width: 0 !important; }}
-.st-key-theme_col button * {{ color: #fff !important; font-size: .95rem; }}
+/* small, quiet icon: no border or label, just a dim sun/moon that brightens on hover */
+.st-key-theme_col button {{ min-height: 44px; min-width: 44px !important; padding: 0 !important;
+  background: transparent !important; border: none !important; box-shadow: none !important; }}
+.st-key-theme_col button p {{ display: none; }}
+.st-key-theme_col button * {{ color: rgba(201,211,223,.55) !important; font-size: 1.05rem; }}
 .st-key-theme_col iframe {{ display: none; }}
-@media (hover: hover) {{ .st-key-theme_col button:hover {{ border-color: #f2b134 !important; }} }}
-@media (max-width: 480px) {{ .st-key-theme_col button p {{ display: none; }} }}
+@media (hover: hover) {{ .st-key-theme_col button:hover * {{ color: #fff !important; }} }}
 @media (min-width: 900px) {{ [data-testid="stColumn"]:has(.st-key-menu_col) {{ display: none !important; }} }}
 @media (max-width: 899px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
   [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 1 1 auto !important; width: auto !important; }} }}

@@ -6,10 +6,11 @@ import inspect
 
 import streamlit as st
 
-from ffmc import fpl, madness, parlay, simulate
+from ffmc import f1, fpl, madness, parlay, simulate
 from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
+F1 = "views/f1.py"
 PARLAYS, NICHE, LIVE = "views/parlays.py", "views/niche.py", "views/live.py"
 
 
@@ -46,7 +47,7 @@ st.markdown(f"""
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
   out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>6</b><small>Tools</small></div>
+    <div><b>7</b><small>Tools</small></div>
     <div><b>80,000+</b><small>Markets scanned</small></div>
     <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
@@ -69,6 +70,9 @@ cards = [
     ("epl", "Premier League · Every gameweek", "Fantasy Premier League", FPL, "Open FPL team picker",
      "Your best XI, bench order and captain, on any budget from £100m up or none at all. Or enter your "
      "FPL team ID."),
+    ("f1", "Formula 1 · Every race weekend", "F1 Fantasy", F1, "Open F1 Fantasy picker",
+     "The best 5 drivers and 2 constructors for the F1 app's fantasy game, on your budget, plus who gets "
+     "the DRS Boost. Prices straight from F1 Fantasy."),
     ("bets", "DraftKings + Kalshi · Every day", "Parlay Lab", PARLAYS, "Open Parlay Lab",
      "The best parlays for your risk and payout, from 80,000+ DraftKings and Kalshi markets, niche sports "
      "included, each tested on a million simulated slates."),
@@ -76,7 +80,7 @@ cards = [
      "Russian table tennis, Bosnian basketball, Valorant, women's cricket: every obscure market on the board, "
      "ranked by a Niche-o-meter, with the best bets for your risk and payout."),
 ]
-for row in (cards[:3], cards[3:]):
+for row in (cards[:4], cards[4:]):
     for col, (sport, label, title, path, cta, text) in zip(st.columns(len(row), gap="medium"), row):
         with col, st.container(key=f"card_{sport}"):
             st.markdown(card_top(sport, label), unsafe_allow_html=True)
@@ -159,7 +163,8 @@ eyebrow("Under the hood")
 st.header("The idea, in a few lines of code")
 st.write("Simplified versions of what each simulator does, written to be read by anyone. "
          "The real code is one click away under each one.")
-t_nfl, t_ncaa, t_epl, t_bets = st.tabs(["NFL lineups", "March Madness", "Premier League", "Parlay Lab"])
+t_nfl, t_ncaa, t_epl, t_f1, t_bets = st.tabs(["NFL lineups", "March Madness", "Premier League", "F1 Fantasy",
+                                             "Parlay Lab"])
 
 with t_nfl:
     st.code('''# Play this week 1,000,000 times
@@ -225,6 +230,28 @@ for gameweek in range(1_000_000):
 # Captain = the player who topped the XI most often.''', language="python")
     real_code(fpl.simulate, fpl.player_points)
 
+with t_f1:
+    st.code('''# Each driver's pace: recent results blended with the betting market's odds.
+expected_finish = blend(last_6_races, kalshi_odds_for_this_race)
+
+# Play the race weekend 1,000,000 times
+for weekend in range(1_000_000):
+    for driver in grid:
+        # Everyone has good and bad weekends, plus extra luck on the day.
+        quali_pace[driver] = -expected_finish[driver] + weekend_luck + quali_luck
+        race_pace[driver]  = -expected_finish[driver] + weekend_luck + race_luck
+        if chance(driver.retirement_rate):
+            race_pace[driver] = DNF                     # -20 in F1 Fantasy
+
+    grid_order, race_order = sort(quali_pace), sort(race_pace)
+    # F1 Fantasy scoring: 10 for pole, 25 for a win, +1 per place gained,
+    # overtakes, fastest lap, Driver of the Day; teams score both cars.
+    remember(fantasy_points(grid_order, race_order))
+
+# Then check every team of 5 drivers + 2 constructors that fits the budget,
+# with the DRS Boost (2x) on its best driver, and keep the highest scorer.''', language="python")
+    real_code(f1.simulate_batch)
+
 with t_bets:
     st.code('''# Step 1: every leg's real chance, with the bookmaker's cut taken out.
 # DraftKings -150 / +130 -> 58% / 42% after removing the cut.
@@ -262,6 +289,6 @@ st.caption("Single results, not long-run averages.")
 # ------------------------------------------------------------------- footer
 st.divider()
 st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboards (college basketball and DraftKings odds), the official "
-           "Fantasy Premier League API and Kalshi's public market data. Not affiliated with ESPN, DraftKings, Kalshi, "
-           "the NFL, the NCAA or the Premier League. For entertainment; no outcome is guaranteed. Betting is 21+; "
+           "Fantasy Premier League API, the official F1 Fantasy game, the Jolpica F1 database and Kalshi's public market data. Not affiliated with ESPN, DraftKings, Kalshi, "
+           "the NFL, the NCAA, the Premier League or Formula 1. For entertainment; no outcome is guaranteed. Betting is 21+; "
            f"if gambling stops being fun, call 1-800-GAMBLER. Version {APP_VERSION}.")

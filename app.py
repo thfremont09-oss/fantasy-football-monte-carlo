@@ -15,8 +15,9 @@ fpl = st.Page("views/fpl.py", title="Fantasy Premier League", icon=":material/sp
 parlays = st.Page("views/parlays.py", title="Parlay Lab", icon=":material/casino:", url_path="parlays")
 niche = st.Page("views/niche.py", title="Niche Sports", icon=":material/explore:", url_path="niche")
 live = st.Page("views/live.py", title="Live Odds", icon=":material/live_tv:", url_path="live")
-PAGES = [home, live, football, madness, fpl, parlays, niche]
-SHORT = {"live": "Live", "football": "NFL", "march-madness": "Bracket", "fpl": "FPL", "parlays": "Parlays",
+f1 = st.Page("views/f1.py", title="F1 Fantasy", icon=":material/sports_motorsports:", url_path="f1")
+PAGES = [home, live, football, madness, fpl, f1, parlays, niche]
+SHORT = {"live": "Live", "football": "NFL", "march-madness": "Bracket", "fpl": "FPL", "f1": "F1", "parlays": "Parlays",
          "niche": "Niche"}                            # short labels so all tabs fit across the header
 page = st.navigation(PAGES, position="hidden")
 

@@ -215,6 +215,31 @@ cheapest legal bench (2 GK, 5 DEF, 5 MID, 3 FWD, max 3 per club).
 Enter your FPL team ID to pick from your own squad. FPL only publishes a squad
 after a deadline passes, so transfers made since the last deadline aren't seen.
 
+## F1 Fantasy
+
+`views/f1.py` (UI) and `ffmc/f1.py` (model): the best team for the official F1
+Fantasy game in the F1 app: 5 drivers and 2 constructors under a budget, with the
+DRS Boost (2x, or 3x with the Extra DRS chip) on one driver.
+
+* **Data:** prices, teams, ownership and every asset's real F1 Fantasy points per
+  round from the official F1 Fantasy feeds; every 2026 race (grid, finish,
+  retirements) from the Jolpica F1 database; Kalshi's odds for the next race
+  (winner, podium, top 5, top 10, fastest lap) when it's listed.
+* **Pace:** each driver's expected finish blends their last 6 races with the
+  finishing position implied by Kalshi's odds; retirement rates come from the same
+  races, steadied toward 8%.
+* **One simulated weekend:** a shared good/bad-weekend factor per driver plus
+  separate qualifying and race luck; retirements drop to the back. Scored with F1
+  Fantasy's rules: qualifying 10-1, race 25-1, +/-1 per place gained/lost,
+  overtakes, fastest lap +10, Driver of the Day +10, DNF -20, sprint points on
+  sprint weekends; constructors score both cars plus the Q2/Q3 bonus and pit
+  stops. Each average is then pulled 40% (less with little history) toward the
+  asset's real recent F1 Fantasy points.
+* **Picking:** all ~1.4 million legal teams under the budget are checked exactly,
+  with the DRS Boost on each team's best driver. Options: budget presets or none
+  (Limitless chip), most points / safe floor / big ceiling, must-haves and
+  drivers to avoid. 1,000,000 simulated weekends take about 10 seconds.
+
 ## Parlay Lab
 
 `views/parlays.py` (UI) and `ffmc/parlay.py` (engine) find the best parlays for

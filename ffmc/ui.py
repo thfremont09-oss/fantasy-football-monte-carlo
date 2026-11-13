@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13h"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13i"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -59,7 +59,8 @@ a, button {{ touch-action: manipulation; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ background: none !important; border-radius: 0;
-  border-bottom: 3px solid transparent; padding: 0.35rem 0.7rem; min-height: 44px; display: flex; align-items: center; }}
+  border-bottom: 3px solid transparent; padding: 1.1rem 0.7rem 0.35rem; margin-top: -0.75rem;
+  min-height: 56px; display: flex; align-items: center; }}   /* taller tap area that reaches up into the bar */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{ color: #c9d3df !important; font-weight: 600; font-size: .95rem; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] span {{ color: #c9d3df !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] {{ border-bottom-color: #f2b134 !important; }}

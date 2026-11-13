@@ -228,11 +228,23 @@ def bracket_score(picks: list[list[int]], results: list[list[int]]) -> tuple[int
     return earned, possible
 
 
-def run(bracket: Bracket, n_sims: int = 10_000, seed: int | None = None, game_sd: float = GAME_SD,
-        use_results: bool = True):
-    """Simulate a bracket; returns (odds[team, round], best-bracket picks)."""
+def run(bracket: Bracket, n_sims: int = 100_000, seed: int | None = None, game_sd: float = GAME_SD,
+        use_results: bool = True, progress=None):
+    """Simulate a bracket; returns (odds[team, round], best-bracket picks).
+
+    Runs in batches, so a million tournaments need no more memory than fifty thousand.
+    """
+    from .stream import batches
+
     r = np.array([t.rating for t in bracket.teams])
     win_prob = 0.5 * (1 + np.vectorize(math.erf)((r[:, None] - r[None, :]) / (game_sd * math.sqrt(2))))
     locked = bracket.results if use_results and not bracket.complete else None
-    odds = advancement(simulate_bracket(win_prob, n_sims, seed, locked))
+    wins = np.zeros((64, 6))
+    done = 0
+    for size, batch_seed in batches(n_sims, seed, batch=100_000):
+        wins += advancement(simulate_bracket(win_prob, size, batch_seed, locked)) * size
+        done += size
+        if progress:
+            progress(done / n_sims)
+    odds = wins / n_sims
     return odds, best_bracket(odds)

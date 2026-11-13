@@ -22,7 +22,7 @@ def load(season: int, day: dt.date) -> mm.Bracket:   # `day` refreshes the cache
     return mm.load_bracket(ESPNClient(".ffmc_cache"), season)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Simulating the tournament 1,000,000 times...")
 def simulate(bracket: mm.Bracket, n_sims: int, seed: int, game_sd: float):
     return mm.run(bracket, n_sims=n_sims, seed=seed, game_sd=game_sd)
 
@@ -33,7 +33,7 @@ def label(t: mm.Team) -> str:
 
 # ------------------------------------------------------------- settings
 banner("ncaa", "March Madness",
-       "The whole 64-team bracket, played out 100,000 times. Team ratings come from every Division I "
+       "The whole 64-team bracket, played out 1,000,000 times. Team ratings come from every Division I "
        "score this season; each game is a weighted coin flip based on the gap between two teams.")
 current = mm.current_season()
 seasons = [s for s in range(current, 2018, -1) if s != 2020]   # no tournament in 2020
@@ -45,7 +45,7 @@ with st.container(key="settings"):
                "actually happened.")
     with st.expander("Simulation settings"):
         s1, s2, s3 = st.columns(3, gap="medium")
-        n_sims = s1.select_slider("Simulated tournaments", [10_000, 50_000, 100_000, 250_000], value=100_000,
+        n_sims = s1.select_slider("Simulated tournaments", [100_000, 250_000, 1_000_000], value=1_000_000,
                                   format_func=lambda n: f"{n:,}",
                                   help="More simulations = steadier odds, but slower.")
         game_sd = s2.slider("Upset level", 8.0, 14.0, mm.GAME_SD, 0.5,

@@ -15,6 +15,7 @@ Data: the official, public FPL API (no login needed).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -177,7 +178,8 @@ def simulate(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000,
                  fx["away"]: rng.poisson(fx["away_xg"], n_sims)}
         in_match, base = [], []
         for team, opp in ((fx["home"], fx["away"]), (fx["away"], fx["home"])):
-            idx = [i for i, p in enumerate(players) if p.team == team]
+            # Only players with some chance of playing; the rest always score 0.
+            idx = [i for i, p in enumerate(players) if p.team == team and p.start_prob + p.sub_prob > 0]
             if not idx:
                 continue
             squad = [players[i] for i in idx]
@@ -190,32 +192,46 @@ def simulate(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000,
     return points
 
 
+def _at_least(lam: float, k: int) -> float:
+    """P(Poisson(lam) >= k)."""
+    if k >= 999 or lam <= 0:
+        return 0.0
+    term, cdf = math.exp(-lam), 0.0
+    for i in range(k):
+        cdf += term
+        term *= lam / (i + 1)
+    return max(0.0, 1.0 - cdf)
+
+
 def player_points(rng, squad: list[FPLPlayer], team_goals: np.ndarray, opp_goals: np.ndarray) -> np.ndarray:
     n, k = len(team_goals), len(squad)
     pos = [p.position for p in squad]
+    f32 = np.float32
 
     # Who plays? A roll of the dice per player per simulation.
-    roll = rng.random((n, k))
-    start_p = np.array([p.start_prob for p in squad])
+    roll = rng.random((n, k), dtype=f32)
+    start_p = np.array([p.start_prob for p in squad], f32)
     started = roll < start_p
-    cameo = (roll >= start_p) & (roll < start_p + np.array([p.sub_prob for p in squad]))
-    on_pitch = started * 1.0 + cameo * 0.3          # share of the match each player is on for
+    cameo = ~started & (roll < start_p + np.array([p.sub_prob for p in squad], f32))
+    on_pitch = started.astype(f32) + cameo * f32(0.3)        # share of the match each player is on for
 
     # Goals and assists go to players on the pitch, weighted by their xG / xA per 90.
-    scorers = share_out(rng, team_goals, on_pitch * np.array([p.xg90 for p in squad]))
-    assisters = share_out(rng, rng.binomial(team_goals, ASSIST_RATE), on_pitch * np.array([p.xa90 for p in squad]))
+    scorers = share_out(rng, team_goals, on_pitch * np.array([p.xg90 for p in squad], f32))
+    assisters = share_out(rng, rng.binomial(team_goals, ASSIST_RATE), on_pitch * np.array([p.xa90 for p in squad], f32))
 
-    pts = started * 2.0 + cameo * 1.0                                           # appearance
-    pts += scorers * np.array([GOAL_POINTS[x] for x in pos]) + assisters * 3    # goals, assists
-    clean = (opp_goals == 0)[:, None] & started
-    pts += clean * np.array([CLEAN_SHEET_POINTS[x] for x in pos])               # clean sheet
-    keeper_or_def = np.array([x in ("GK", "DEF") for x in pos])
-    pts -= started * keeper_or_def * (opp_goals[:, None] // 2)                  # -1 per 2 conceded
-    saves = rng.poisson(np.array([p.saves90 for p in squad]), (n, k))
-    pts += started * (saves // 3)                                               # 1 per 3 saves
-    defcon = rng.poisson(np.array([p.defcon90 for p in squad]), (n, k))
-    need = np.array([DEFCON_THRESHOLD.get(x, 999) for x in pos])
-    pts += started * (defcon >= need) * 2                                       # defensive contribution
+    pts = started * f32(2) + cameo * f32(1)                                                # appearance
+    pts += scorers * np.array([GOAL_POINTS[x] for x in pos], f32) + assisters * f32(3)    # goals, assists
+    clean = started & (opp_goals == 0)[:, None]
+    pts += clean * np.array([CLEAN_SHEET_POINTS[x] for x in pos], f32)                    # clean sheet
+    back = [j for j, x in enumerate(pos) if x in ("GK", "DEF")]
+    pts[:, back] -= started[:, back] * (opp_goals[:, None] // 2).astype(f32)               # -1 per 2 conceded
+    keepers = [j for j, x in enumerate(pos) if x == "GK"]
+    if keepers:                                                                            # 1 per 3 saves
+        saves = rng.poisson(np.array([squad[j].saves90 for j in keepers]), (n, len(keepers)))
+        pts[:, keepers] += started[:, keepers] * (saves // 3).astype(f32)
+    p_defcon = np.array([_at_least(p.defcon90, DEFCON_THRESHOLD.get(p.position, 999)) for p in squad], f32)
+    hit = rng.random((n, k), dtype=f32) < p_defcon
+    pts += (started & hit) * f32(2)                                                        # defensive contribution
     return pts
 
 
@@ -225,22 +241,27 @@ def share_out(rng, counts: np.ndarray, weights: np.ndarray, other: float = 0.1) 
     ``other`` is the weight of everyone else (subs not modelled, own goals...).
     """
     n, k = weights.shape
-    out = np.zeros((n, k), dtype=int)
-    cum = np.cumsum(np.hstack([weights, np.full((n, 1), other)]), axis=1)
+    out = np.zeros(n * k, dtype=np.int32)
+    cum = np.cumsum(np.hstack([weights, np.full((n, 1), other, weights.dtype)]), axis=1)
+    rows = np.arange(n)
     for g in range(int(counts.max(initial=0))):
-        active = counts > g
-        pick = (cum < rng.random(n)[:, None] * cum[:, -1:]).sum(axis=1)
-        hit = active & (pick < k)
-        np.add.at(out, (np.flatnonzero(hit), pick[hit]), 1)
-    return out
+        active = np.flatnonzero(counts > g)                  # only simulations with another goal to give
+        u = rng.random(len(active), dtype=cum.dtype) * cum[active, -1]
+        pick = (cum[active] < u[:, None]).sum(axis=1)
+        keep = pick < k
+        out += np.bincount(rows[active[keep]] * k + pick[keep], minlength=n * k).astype(np.int32)
+    return out.reshape(n, k)
 
 
 def bonus_points(base: np.ndarray) -> np.ndarray:
     """3, 2 and 1 bonus points to the three best performers in each simulated match."""
     bonus = np.zeros_like(base)
-    top = np.argsort(-base, axis=1)[:, :3]
+    m = min(3, base.shape[1])
+    part = np.argpartition(-base, m - 1, axis=1)[:, :m]                    # top 3, unordered
     rows = np.arange(base.shape[0])[:, None]
-    bonus[rows, top] = np.array([3, 2, 1])[: top.shape[1]] * (base[rows, top] > 1)
+    order = np.argsort(-base[rows, part], axis=1)
+    top = part[rows, order]
+    bonus[rows, top] = np.array([3, 2, 1], base.dtype)[:m] * (base[rows, top] > 1)
     return bonus
 
 
@@ -384,14 +405,26 @@ class Result:
     squad_cost: float | None = None  # £m, when a budget was used
 
 
-def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000, seed: int | None = None,
-        squad: list[int] | None = None, budget: float | None = None) -> Result:
+SELECT_SIMS = 50_000    # simulations used to choose the team; the rest only measure it
+
+
+def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 25_000, seed: int | None = None,
+        squad: list[int] | None = None, budget: float | None = None, progress=None) -> Result:
     """Simulate the gameweek and pick the XI, bench and captain.
 
     ``squad``: indices of your 15 players. Without it, the best XI from every
     player is chosen; with ``budget`` (£m) the whole 15-man squad must fit it.
+
+    The team is chosen from up to 50,000 simulated gameweeks, then measured on
+    ``n_sims`` fresh ones, run in batches so even a million fit in memory.
     """
-    sims = simulate(gw, players, n_sims, seed)
+    from .stream import Tally, batches
+
+    rng = np.random.default_rng(seed)
+    select_seed, measure_seed = (int(x) for x in rng.integers(0, 2**32, size=2))
+
+    # 1. Choose the team.
+    sims = simulate(gw, players, min(n_sims, SELECT_SIMS), select_seed)
     mean = sims.mean(axis=0)
     allowed = None
     squad_cost = None
@@ -407,19 +440,29 @@ def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 10_000, seed: int 
     by_mean = sorted(xi, key=lambda i: -mean[i])
     captain, vice = by_mean[0], by_mean[1]
 
-    xi_sims = sims[:, xi]
-    top = np.zeros(len(players))
-    np.add.at(top, np.array(xi)[xi_sims.argmax(axis=1)], 1)
-
     in_best = np.zeros(len(players))
-    sample = sims[: min(n_sims, 2000)]               # hindsight XI is slower; a sample is plenty
+    sample = sims[:2000]                              # hindsight XI is slow per row; a sample is plenty
     for row in sample:
         in_best[pick_xi(row, players, allowed)] += 1
+    in_best_pct = 100 * in_best / len(sample)
+    del sims
 
-    totals = xi_sims.sum(axis=1) + sims[:, captain]
-    return Result(xi, bench, captain, vice, mean, np.percentile(sims, 10, axis=0),
-                  np.percentile(sims, 90, axis=0), 100 * top / n_sims, 100 * in_best / len(sample), totals,
-                  squad_cost)
+    # 2. Measure it on fresh simulations, in batches.
+    tally = Tally(len(players), lo=-10, hi=80, step=1)      # FPL points are whole numbers
+    top = np.zeros(len(players))
+    totals = []
+    done = 0
+    for size, batch_seed in batches(n_sims, measure_seed, batch=25_000):
+        sims = simulate(gw, players, size, batch_seed)
+        tally.add(sims)
+        xi_sims = sims[:, xi]
+        np.add.at(top, np.array(xi)[xi_sims.argmax(axis=1)], 1)
+        totals.append(xi_sims.sum(axis=1) + sims[:, captain])
+        done += size
+        if progress:
+            progress(done / n_sims)
+    return Result(xi, bench, captain, vice, tally.mean, tally.percentile(10), tally.percentile(90),
+                  100 * top / n_sims, in_best_pct, np.concatenate(totals), squad_cost)
 
 
 def load_squad(client: FPLClient, gw: Gameweek, team_id: int) -> tuple[list[int], str, list[str]]:

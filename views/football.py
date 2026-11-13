@@ -72,7 +72,7 @@ def headshot(p, live: bool) -> str | None:
 
 # --------------------------------------------------------------- settings
 banner("nfl", "Fantasy Football Lineups",
-       "Built for ESPN leagues. Your week is simulated 50,000 times from ESPN's projections, each "
+       "Built for ESPN leagues. Your week is simulated 1,000,000 times from ESPN's projections, each "
        "player's recent games, injury status and matchup, and the lineup that comes out ahead most often "
        "is the one to start.")
 
@@ -136,9 +136,9 @@ with st.container(key="settings"):
                 slots += [s] * int(n)
     with (e2 if mode != "My ESPN league" else e1).expander("Simulation settings"):
         objective = st.selectbox("Optimize for", list(OBJECTIVES), format_func=OBJECTIVES.get)
-        n_sims = st.select_slider("Simulated weeks", [10_000, 25_000, 50_000, 100_000], value=50_000,
+        n_sims = st.select_slider("Simulated weeks", [50_000, 100_000, 250_000, 1_000_000], value=1_000_000,
                                    format_func=lambda n: f"{n:,}",
-                                   help="More simulations = steadier odds, but slower. 50,000 is plenty for most weeks.")
+                                   help="More simulations = steadier odds, but slower. A million takes a few seconds.")
         history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
                                   help="Used to judge how boom-or-bust each player is.")
         correlated = st.checkbox("Teammates & games are correlated", value=True,
@@ -203,16 +203,19 @@ if objective == "win" and (dream or not slate.has_opponent):
 
 params = (demo, mode, slate.season, slate.week, tuple(slate.slots), tuple(sorted(slate.my_ids)),
           tuple(sorted(slate.opp_ids)), objective, n_sims, history_weeks, correlated, seed, rules)
-if st.button("Simulate", type="primary") or st.session_state.get("params") == params:
+if st.button(f"Simulate {n_sims:,} weeks", type="primary") or st.session_state.get("params") == params:
     if st.session_state.get("params") != params:
-        with st.spinner(f"Simulating the week {n_sims:,} times..."):
-            try:
-                st.session_state["result"] = engine.run(slate, n_sims=n_sims, objective=objective,
-                                                        seed=int(seed), correlated=correlated, dream=dream)
-            except ValueError as exc:
-                st.error(str(exc))
-                st.stop()
+        bar = st.progress(0.0, text=f"Simulating the week {n_sims:,} times...")
+        try:
+            st.session_state["result"] = engine.run(
+                slate, n_sims=n_sims, objective=objective, seed=int(seed), correlated=correlated, dream=dream,
+                progress=lambda f: bar.progress(f, text=f"Simulating the week {n_sims:,} times... "
+                                                        f"{int(f * n_sims):,} done"))
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
         st.session_state["params"] = params
+        bar.empty()
 else:
     st.stop()
 

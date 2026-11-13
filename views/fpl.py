@@ -26,9 +26,22 @@ def load_team(gw: fpl.Gameweek, team_id: int):
     return fpl.load_squad(fpl.FPLClient(".ffmc_cache"), gw, team_id)
 
 
-@st.cache_data(show_spinner="Simulating the gameweek...")
-def simulate(gw: fpl.Gameweek, n_sims: int, seed: int, squad: tuple[int, ...] | None, budget: float | None):
-    return fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None, budget)
+@st.cache_resource
+def saved_results() -> dict:
+    """Finished simulations, shared by everyone on the site, keyed by their settings."""
+    return {}
+
+
+def simulate(gw: fpl.Gameweek, n_sims: int, seed: int, squad: tuple[int, ...] | None, budget: float | None,
+             progress=None):
+    # Same gameweek, same settings, same hour of data -> reuse the earlier answer instantly.
+    key = (gw.id, gw.deadline, dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H"), n_sims, seed, squad, budget)
+    store = saved_results()
+    if key not in store:
+        if len(store) >= 30:                     # keep memory in check
+            store.pop(next(iter(store)))
+        store[key] = fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None, budget, progress=progress)
+    return store[key]
 
 
 # ------------------------------------------------------------------- data
@@ -40,7 +53,7 @@ except fpl.FPLError as exc:
 
 deadline = dt.datetime.fromisoformat(gw.deadline.replace("Z", "+00:00"))
 banner("epl", "Fantasy Premier League",
-       "Every fixture of the gameweek is played out 25,000 times: goals, assists, clean sheets, "
+       "Every fixture of the gameweek is played out 1,000,000 times: goals, assists, clean sheets, "
        "saves, defensive contributions and bonus. The XI and captain that come out on top most often "
        "are your best picks.",
        chips=[gw.name, f"Deadline {deadline:%a %d %b, %H:%M} UTC", f"{len(gw.fixtures)} fixtures"])
@@ -71,9 +84,10 @@ with st.container(key="settings"):
             budget = presets[choice]
     with st.expander("Simulation settings"):
         s1, s2 = st.columns(2, gap="medium")
-        n_sims = s1.select_slider("Simulated gameweeks", [10_000, 25_000, 50_000], value=25_000,
+        n_sims = s1.select_slider("Simulated gameweeks", [25_000, 100_000, 250_000, 1_000_000], value=1_000_000,
                                   format_func=lambda n: f"{n:,}",
-                                  help="More simulations = steadier odds, but slower. Each one plays all 10 matches.")
+                                  help="More simulations = steadier odds, but slower. Each one plays all 10 matches, so a "
+                                       "million takes a minute or two.")
         seed = s2.number_input("Random seed", 0, 10**6, 42, key="fpl_seed")
 
 for note in gw.notes:
@@ -94,11 +108,26 @@ if mode == "My FPL team":
     for note in notes:
         st.caption(note)
 
-try:
-    res = simulate(gw, n_sims, int(seed), tuple(squad) if squad else None, budget)
-except fpl.FPLError as exc:
-    st.error(str(exc))
+# Big runs take a while, so they start with a button. Same settings again = instant (cached).
+params = (gw.id, n_sims, int(seed), tuple(squad) if squad else None, budget)
+if st.button(f"Simulate {n_sims:,} gameweeks", type="primary") or st.session_state.get("fpl_params") == params:
+    if st.session_state.get("fpl_params") != params:
+        bar = st.progress(0.0, text=f"Playing every match {n_sims:,} times...")
+        try:
+            st.session_state["fpl_result"] = simulate(
+                gw, n_sims, int(seed), params[3], budget,
+                progress=lambda f: bar.progress(f, text=f"Playing every match {n_sims:,} times... "
+                                                        f"{int(f * n_sims):,} done"))
+        except fpl.FPLError as exc:
+            st.error(str(exc))
+            st.stop()
+        st.session_state["fpl_params"] = params
+        bar.empty()
+else:
+    st.caption(f"Press the button to play this gameweek {n_sims:,} times. A million takes a minute or two; "
+               "pick fewer under Simulation settings for a quicker answer.")
     st.stop()
+res = st.session_state["fpl_result"]
 
 P = gw.players
 

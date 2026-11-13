@@ -41,12 +41,12 @@ st.markdown(f"""
 </style>
 <div class="hero">
   <p class="eyebrow">Simulation-based sports analytics</p>
-  <h1>Every game, played 100,000 times.</h1>
+  <h1>Every game, played 1,000,000 times.</h1>
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
-  out tens of thousands of times with real data, then tell you which choice comes out ahead most often.</p>
+  out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
     <div><b>3</b><small>Sports</small></div>
-    <div><b>250,000</b><small>Simulations per run, max</small></div>
+    <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
   </div>
   <div class="bar">{stripes}</div>
@@ -80,7 +80,7 @@ st.header("Three steps, every sport")
 steps = [
     ("1. Build a picture", "Start from real data: projections, recent games, injuries, team strength. Turn it "
                            "into a realistic range for each player or team, not just one number."),
-    ("2. Play it out", "Let the computer play the games tens of thousands of times. Some runs a star has a huge day, "
+    ("2. Play it out", "Let the computer play the games a million times. Some runs a star has a huge day, "
                        "some runs they're quiet, and some runs the underdog wins. Like real life."),
     ("3. Count the wins", "Look at all those results and count. The lineup, bracket or captain that comes "
                           "out on top most often is your best bet, and you see the odds behind it."),
@@ -93,28 +93,27 @@ st.write("")
 eyebrow("Simulations")
 st.header("How many simulations?")
 st.write("Each run is random, so the odds wobble a little from one run to the next. The more times the "
-         "games are played, the less they wobble. Here's how many each tool runs, and how steady that makes "
-         "a typical 50-50 call.")
+         "games are played, the less they wobble. Every tool now plays the games a million times, which makes "
+         "the odds rock-steady. A million games would fill gigabytes of memory, so they're played in batches "
+         "and only the running totals are kept.")
 
 
 def wobble(n: int) -> str:
     return f"±{196 * (0.25 / n) ** 0.5:.1f}"      # 95% margin on a 50% chance, in percentage points
 
 
-sims = [("nfl", "NFL lineups", 50_000, 100_000, "weeks"), ("ncaa", "March Madness", 100_000, 250_000, "tournaments"),
-        ("epl", "Fantasy Premier League", 25_000, 50_000, "gameweeks")]
-for col, (sport, name, default, most, unit) in zip(st.columns(3, gap="medium"), sims):
+sims = [("nfl", "NFL lineups", "weeks", "a few seconds"), ("ncaa", "March Madness", "tournaments", "about a second"),
+        ("epl", "Fantasy Premier League", "gameweeks", "a minute or two")]
+for col, (sport, name, unit, speed) in zip(st.columns(3, gap="medium"), sims):
     c = SPORTS[sport]["color"]
     col.markdown(f"""
-<div style="border-top:4px solid {c};background:#fff;border:1px solid #dfe3e8;border-top:4px solid {c};
-            border-radius:8px;padding:.9rem 1rem">
+<div style="background:#fff;border:1px solid #dfe3e8;border-top:4px solid {c};border-radius:8px;padding:.9rem 1rem">
   <p class="eyebrow" style="color:{c}">{name}</p>
-  <div style="font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:700;line-height:1">{default:,}</div>
-  <p style="margin:.15rem 0 .6rem;color:#3b4857">{unit} per run (up to {most:,})</p>
-  <p style="margin:0;color:#3b4857;font-size:.92rem">A 50% chance comes out within
-  <b>{wobble(default)} points</b> ({wobble(most)} at the maximum).</p>
+  <div style="font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:700;line-height:1">1,000,000</div>
+  <p style="margin:.15rem 0 .6rem;color:#3b4857">{unit} per run · takes {speed}</p>
+  <p style="margin:0;color:#3b4857;font-size:.92rem">A 50% chance comes out within <b>{wobble(1_000_000)} points</b>.</p>
 </div>""", unsafe_allow_html=True)
-st.caption("You can change the number under Simulation settings on each tool. More simulations take longer.")
+st.caption("Want a faster answer? Pick fewer simulations under Simulation settings on each tool.")
 
 # -------------------------------------------------------------- what's used
 st.write("")
@@ -147,8 +146,8 @@ st.write("Simplified versions of what each simulator does, written to be read by
 t_nfl, t_ncaa, t_epl = st.tabs(["NFL lineups", "March Madness", "Premier League"])
 
 with t_nfl:
-    st.code('''# Play this week 50,000 times
-for week in range(50_000):
+    st.code('''# Play this week 1,000,000 times
+for week in range(1_000_000):
     for player in your_players:
         # Start from the projection, then roll the dice:
         # most weeks land near it, some are huge, some are duds.
@@ -174,8 +173,8 @@ with t_ncaa:
 # (after allowing for home court). Repeat for thousands of games.
 ratings = rate_teams(every_score_this_season)
 
-# Step 2: play the whole tournament 100,000 times.
-for tournament in range(100_000):
+# Step 2: play the whole tournament 1,000,000 times.
+for tournament in range(1_000_000):
     teams_left = the_64_teams
     while more_than_one(teams_left):
         for team_a, team_b in this_rounds_games(teams_left):
@@ -189,8 +188,8 @@ for tournament in range(100_000):
     real_code(madness.fit_ratings, madness.simulate_bracket)
 
 with t_epl:
-    st.code('''# Play this gameweek 25,000 times
-for gameweek in range(25_000):
+    st.code('''# Play this gameweek 1,000,000 times
+for gameweek in range(1_000_000):
     for match in this_gameweeks_fixtures:
         # How many goals? Depends on one side's attack vs. the other's defence.
         home_goals = random_goals(expected = home_attack * away_defence)

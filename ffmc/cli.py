@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     opts.add_argument("--slots", help="starting slots, e.g. 'QB,RB,RB,WR,WR,TE,FLEX,K,DEF' (default)")
     opts.add_argument("--objective", choices=["auto", "mean", "win", "floor", "ceiling"], default="auto",
                       help="what to optimize; auto = win probability if there is an opponent, else expected points")
-    opts.add_argument("--sims", type=int, default=50_000, help="number of simulations (default: 50000)")
+    opts.add_argument("--sims", type=int, default=1_000_000, help="number of simulations (default: 1,000,000)")
     opts.add_argument("--seed", type=int, help="random seed for reproducible results")
     opts.add_argument("--history-weeks", type=int, default=6,
                       help="recent weeks of actual stats used to estimate each player's volatility (default: 6)")

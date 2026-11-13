@@ -11,6 +11,7 @@ from .lineup import (SLOT_ELIGIBILITY, best_lineup, hindsight_optimal, lineup_to
                      objective_fn)
 from .model import Player
 from .simulate import simulate
+from .stream import Progress, Tally, batches
 
 
 @dataclass
@@ -53,8 +54,11 @@ def prune_pool(players: list[Player], slots: list[str], keep: set[str]) -> list[
     return out
 
 
-def run(slate: Slate, n_sims: int = 10_000, objective: str = "auto", seed: int | None = None,
-        correlated: bool = True, dream: bool = False) -> Result:
+OPTIMIZE_SIMS = 50_000   # lineup search uses this many; the rest only measure the chosen lineup
+
+
+def run(slate: Slate, n_sims: int = 50_000, objective: str = "auto", seed: int | None = None,
+        correlated: bool = True, dream: bool = False, progress: Progress = None) -> Result:
     if objective == "auto":
         objective = "win" if slate.has_opponent and not dream else "mean"
     if objective == "win" and (dream or not slate.has_opponent):
@@ -69,16 +73,12 @@ def run(slate: Slate, n_sims: int = 10_000, objective: str = "auto", seed: int |
     mine = np.array([dream or not slate.has_roster or "mine" in p.tags for p in players])
     opp = np.array([(not dream) and "opp" in p.tags for p in players])
 
-    # Optimise on one set of simulations, report on an independent set so the
-    # reported numbers aren't flattered by the search overfitting the noise.
     rng = np.random.default_rng(seed)
     opt_seed, eval_seed = rng.integers(0, 2**32, size=2)
-    sims = simulate(players, n_sims, seed=int(opt_seed), correlated=correlated)
-    eval_sims = simulate(players, n_sims, seed=int(eval_seed), correlated=correlated)
 
     expected = np.array([p.mean * p.p_play for p in players])
-    lineup_idx = best_lineup(expected, positions, slate.slots, allowed=mine)
-    mean_points = float(lineup_totals(eval_sims, lineup_idx).mean())
+    mean_lineup = best_lineup(expected, positions, slate.slots, allowed=mine)
+    lineup_idx = mean_lineup
 
     opp_idx = None
     if opp.any():
@@ -88,19 +88,40 @@ def run(slate: Slate, n_sims: int = 10_000, objective: str = "auto", seed: int |
         else:
             opp_idx = best_lineup(expected, positions, slate.slots, allowed=opp)
 
+    # 1. Choose the lineup. Non-linear goals (win chance, floor, ceiling) are searched
+    #    on one set of simulations...
     if objective != "mean":
+        sims = simulate(players, min(n_sims, OPTIMIZE_SIMS), seed=int(opt_seed), correlated=correlated)
         opp_tot = lineup_totals(sims, opp_idx) if opp_idx is not None else None
         lineup_idx = local_search(sims, positions, slate.slots, lineup_idx,
                                   objective_fn(objective, opp_tot), allowed=mine)
+        del sims
 
-    totals = lineup_totals(eval_sims, lineup_idx)
-    hindsight = hindsight_optimal(eval_sims, positions, slate.slots, allowed=mine)
-    counts = np.bincount(hindsight[hindsight >= 0].ravel(), minlength=len(players))
+    # 2. ...and measured on a fresh, independent set, in batches so that even a
+    #    million simulations fit in memory.
+    tally = Tally(len(players))
+    counts = np.zeros(len(players))
+    totals, opp_totals, mean_totals = [], [], []
+    done = 0
+    for size, batch_seed in batches(n_sims, int(eval_seed)):
+        sims = simulate(players, size, seed=batch_seed, correlated=correlated)
+        tally.add(sims)
+        hindsight = hindsight_optimal(sims, positions, slate.slots, allowed=mine)
+        counts += np.bincount(hindsight[hindsight >= 0].ravel(), minlength=len(players))
+        totals.append(lineup_totals(sims, lineup_idx))
+        mean_totals.append(lineup_totals(sims, mean_lineup))
+        if opp_idx is not None:
+            opp_totals.append(lineup_totals(sims, opp_idx))
+        done += size
+        if progress:
+            progress(done / n_sims)
+    totals = np.concatenate(totals)
+    mean_points = float(np.concatenate(mean_totals).mean())
+    p10, p90 = tally.percentile(10), tally.percentile(90)
 
     def pres(i: int) -> PlayerResult:
-        col = eval_sims[:, i]
-        return PlayerResult(players[i], float(col.mean()), float(np.percentile(col, 10)),
-                            float(np.percentile(col, 90)), 100.0 * counts[i] / n_sims)
+        return PlayerResult(players[i], float(tally.mean[i]), float(p10[i]), float(p90[i]),
+                            100.0 * counts[i] / n_sims)
 
     lineup = [pres(i) if i >= 0 else None for i in lineup_idx]
     started = set(lineup_idx)
@@ -112,7 +133,7 @@ def run(slate: Slate, n_sims: int = 10_000, objective: str = "auto", seed: int |
     result = Result(slate, objective, n_sims, slate.slots, lineup, bench, totals,
                     mean_lineup_points=mean_points)
     if opp_idx is not None:
-        result.opp_totals = lineup_totals(eval_sims, opp_idx)
+        result.opp_totals = np.concatenate(opp_totals)
         result.opp_lineup = [pres(i) if i >= 0 else None for i in opp_idx]
         result.win_prob = float((totals > result.opp_totals).mean()
                                 + 0.5 * (totals == result.opp_totals).mean())

@@ -273,3 +273,12 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   stats from ESPN's game summary: team stats (season averages before kick-off),
   leaders, ESPN's matchup predictor, recent plays and each team's last five.
   Tennis and UFC have no ESPN summary, so they show score, odds and chart.
+* **Search** is a type-ahead box over all ~1,600 teams and 26 leagues, fixes typos
+  (`bayren` → Bayern Munich, via `difflib`) and also shows each matching team's
+  **next game however far away**, one per competition (ESPN team schedules).
+* **Schedule tab:** choose a league (nothing loads until you do) to see its next
+  7 days grouped by day, or pick one day, e.g. Sunday.
+* Each card has a colored league badge (one color per sport) with the sport and
+  country. Results in a team's last five are green (W) or red (L).
+* **Light / Dark** button in the header; by default the site follows the
+  device's setting. Refreshes don't fade the page.

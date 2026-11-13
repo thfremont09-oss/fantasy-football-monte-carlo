@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -34,9 +36,12 @@ class CachedJSON:
         if self.cache_dir and ttl > 0 and not cookies:
             key = hashlib.sha1((url + json.dumps(params or []) + json.dumps(headers or {}, sort_keys=True)).encode()).hexdigest()
             cache_file = self.cache_dir / f"{key}.json"
-            if cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
-                with cache_file.open() as f:
-                    return json.load(f)
+            try:
+                if time.time() - cache_file.stat().st_mtime < ttl:
+                    with cache_file.open() as f:
+                        return json.load(f)
+            except (OSError, ValueError):
+                pass   # missing, or unreadable: fetch it again
         try:
             resp = self.session.get(url, params=params, timeout=self.timeout, headers=headers, cookies=cookies)
             if resp.status_code >= 400:
@@ -47,8 +52,11 @@ class CachedJSON:
         except ValueError as exc:
             raise APIError(f"GET {url} returned something that isn't JSON") from exc
         if cache_file is not None:
-            with cache_file.open("w") as f:
+            # Write to a temporary file and swap it in, so a reader never sees half a file.
+            tmp = cache_file.with_name(f"{cache_file.stem}.{os.getpid()}.{threading.get_ident()}.tmp")
+            with tmp.open("w") as f:
                 json.dump(data, f)
+            os.replace(tmp, cache_file)
         return data
 
 

@@ -125,3 +125,36 @@ def test_game_key_round_trips():
 def test_surname_matching_for_tennis():
     assert live._same("Fritz", "Taylor Fritz") and live._same("T. Fritz", "Taylor Fritz")
     assert not live._same("Fritz", "Musetti")
+
+
+INDEX = [("Bundesliga", "132", ["Bayern Munich", "Bayern", "Munich", "", "Bayern Munich", "MUN"]),
+         ("Men's College Basketball", "9", ["Grand Valley State Lakers", "GVSU", "Lakers", "Lakers"]),
+         ("NBA", "13", ["Los Angeles Lakers", "Lakers", "Lakers", "Lakers", "Los Angeles", "LAL"]),
+         ("Premier League", "359", ["Arsenal", "Arsenal", "Arsenal", "Arsenal", "Arsenal", "ARS"])]
+
+
+def test_find_teams_prefers_pro_teams():
+    assert live.find_teams("lakers", INDEX)[0] == ("NBA", "13", "Los Angeles Lakers")
+    assert live.find_teams("bayern", INDEX) == [("Bundesliga", "132", "Bayern Munich")]
+    assert live.find_teams("ba", INDEX) == []          # too short
+
+
+def test_spelling_correction():
+    assert live.correct("bayren", INDEX) == "Bayern Munich"
+    assert live.correct("arsnal", INDEX) == "Arsenal"
+    assert live.correct("arsenal", INDEX) is None        # already fine
+    assert live.correct("qwxzv", INDEX) is None
+
+
+def test_schedule_keeps_only_that_eastern_day(monkeypatch):
+    e1, e2 = event(state="pre"), event(state="pre")
+    e2["id"] = e2["competitions"][0]["id"] = "2"
+    e1["competitions"][0]["date"] = "2026-11-15T18:00Z"     # Sun 1pm ET
+    e2["competitions"][0]["date"] = "2026-11-16T03:00Z"     # Sun 10pm ET, filed under Monday by ESPN
+    def fake_games(http, path, sport, name, days):
+        return [g for g in (live._game(e["competitions"][0], e, sport, name) for e in (e1, e2))]
+    monkeypatch.setattr(live, "espn_games", fake_games)
+    monkeypatch.setattr(live, "kalshi_prices", lambda http, s: {})
+    games = live.load_schedule("NFL", dt.date(2026, 11, 15))
+    assert [g.id for g in games] == ["1", "2"]
+    assert live.load_schedule("NFL", dt.date(2026, 11, 16)) == []

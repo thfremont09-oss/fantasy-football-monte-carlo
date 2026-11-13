@@ -31,6 +31,21 @@ def board() -> tuple[list[live.Game], dt.datetime]:
 
 
 @st.cache_data(ttl=12, show_spinner=False)
+def schedule(league: str, day: dt.date) -> list[live.Game]:
+    return live.load_schedule(league, day)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def week(league: str, first: dt.date) -> list[live.Game]:
+    return live.load_week(league, first)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def next_games(query: str) -> list[live.Game]:
+    return live.next_games(query)
+
+
+@st.cache_data(ttl=12, show_spinner=False)
 def history(series: str, ticker: str, hours: float, interval: int):
     return live.kalshi_history(series, ticker, hours, interval)
 
@@ -53,7 +68,27 @@ def status_html(g: live.Game) -> str:
         return f'<span class="lv-live"><i></i>LIVE · {html.escape(g.detail)}</span>'
     if g.state == "post":
         return f'<span class="lv-final">{html.escape(g.detail or "Final")}</span>'
-    return f'<span class="lv-pre">{g.start.astimezone(ET):%a %I:%M %p} ET</span>'
+    t = g.start.astimezone(ET)
+    return f'<span class="lv-pre">{t:%a %b} {t.day}, {t:%I:%M %p}'.replace(", 0", ", ") + ' ET</span>'
+
+
+# One color per sport, so leagues are easy to tell apart at a glance.
+SPORT_COLORS = {"Football": "#2e7d3a", "Basketball": "#c75a1c", "Hockey": "#0f6fa8", "Baseball": "#b3261e",
+                "Soccer": "#0f7a86", "Tennis": "#7a8a12", "MMA": "#5b3cc4"}
+FLAGS = {"Premier League": "England", "EFL Championship": "England", "La Liga": "Spain", "Bundesliga": "Germany",
+         "Serie A": "Italy", "Ligue 1": "France", "Champions League": "Europe", "Europa League": "Europe",
+         "MLS": "USA & Canada", "Liga MX": "Mexico", "Eredivisie": "Netherlands", "Primeira Liga": "Portugal",
+         "Brasileirão": "Brazil", "Argentine Primera": "Argentina", "Saudi Pro League": "Saudi Arabia",
+         "Scottish Premiership": "Scotland", "ATP": "Men's tour", "WTA": "Women's tour"}
+
+
+def league_html(g: live.Game) -> str:
+    """Colored league badge plus the sport (and country for soccer)."""
+    color = SPORT_COLORS.get(g.sport, "#4a5a6c")
+    where = FLAGS.get(g.league)
+    sub = f"{g.sport} · {where}" if where else g.sport
+    return (f'<span class="lv-league"><b class="lv-badge" style="background:{color}">{html.escape(g.league)}</b>'
+            f'<span class="lv-sport">{html.escape(sub)}</span></span>')
 
 
 def logo_html(s: live.Side, cls: str = "lv-logo") -> str:
@@ -68,7 +103,7 @@ def result_chip(result: str) -> str:
     return f'<span class="wl wl-{kind}">{html.escape(result)}</span>'
 
 
-def card(g: live.Game) -> str:
+def card(g: live.Game, sched: bool = False) -> str:
     rows = []
     best = max(range(len(g.sides)), key=lambda i: g.sides[i].kalshi or 0) if g.kalshi_updated else None
     for i, s in enumerate(g.sides):
@@ -86,9 +121,11 @@ def card(g: live.Game) -> str:
     foot = " · ".join(x for x in (f"Spread {g.spread}" if g.spread else "", g.total) if x)
     if g.state == "in" and any(s.dk for s in g.sides):
         foot = (foot + " · " if foot else "") + "DraftKings line is pre-game"
-    return (f'<a class="lv-cardlink" href="?game={quote(g.key)}" target="_self">'
+    # Games beyond the live board carry their date, so the game page knows where to find them.
+    day = f"&d={g.start.astimezone(ET).date().isoformat()}" if sched else ""
+    return (f'<a class="lv-cardlink" href="?game={quote(g.key)}{day}" target="_self">'
             f'<div class="lv-card{" is-live" if g.state == "in" else ""}"><div class="lv-top">'
-            f'<span class="lv-league">{html.escape(g.league)}</span>{status_html(g)}</div>'
+            f'{league_html(g)}{status_html(g)}</div>'
             f'<table><thead><tr><th></th><th>{"Score" if g.state != "pre" else ""}</th>'
             + ("" if g.state == "post" else "<th>DraftKings</th><th>Kalshi</th>") + '</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table>'
@@ -106,7 +143,13 @@ a.lv-cardlink, a.lv-cardlink:hover {{ text-decoration: none !important; color: i
   border-color: {COLOR}; }} }}
 .lv-card.is-live {{ border-color: #f0b3b3; box-shadow: 0 0 0 2px rgba(214,40,40,.08); }}
 .lv-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; gap: .5rem; }}
-.lv-league {{ font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #4a5a6c; }}
+.lv-league {{ font-size: .7rem; font-weight: 600; color: #4a5a6c; display: inline-flex; align-items: center; gap: .45rem;
+  flex-wrap: wrap; min-width: 0; }}
+.lv-badge {{ color: #fff !important; font-size: .74rem; font-weight: 700; letter-spacing: .04em; padding: .16rem .5rem;
+  border-radius: 4px; white-space: nowrap; }}
+.lv-sport {{ text-transform: uppercase; letter-spacing: .08em; font-size: .66rem; }}
+.lv-day {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.15rem; font-weight: 700; text-transform: uppercase;
+  margin: .9rem 0 0; border-bottom: 2px solid {COLOR}; display: inline-block; padding-right: .5rem; }}
 .lv-live {{ color: #c62828; font-weight: 700; font-size: .8rem; display: inline-flex; align-items: center; gap: .35rem; }}
 .lv-live i {{ width: 8px; height: 8px; border-radius: 50%; background: #e53935; animation: lvpulse 1.2s infinite; }}
 @keyframes lvpulse {{ 0%, 100% {{ opacity: 1; transform: scale(1); }} 50% {{ opacity: .35; transform: scale(.7); }} }}
@@ -199,9 +242,17 @@ def odds_chart(g: live.Game, d: live.Details, span: str) -> None:
                "Faint dashed: DraftKings' pre-game line with the bookmaker's cut removed.")
 
 
-def game_view(key: str) -> None:
+def game_view(key: str, day: str | None = None) -> None:
     games, fetched = board()
     g = next((x for x in games if x.key == key), None)
+    if g is None and day:      # a game from the schedule or a team search: look it up on its day
+        league = live.league_for_path(key.split("~")[0])
+        try:
+            when = dt.date.fromisoformat(day)
+        except ValueError:
+            when = None
+        if league and when:
+            g = next((x for x in schedule(league, when) if x.key == key), None)
     if g is None:
         st.info("That game isn't on the board any more (it may have finished more than 18 hours ago).")
         return
@@ -209,7 +260,8 @@ def game_view(key: str) -> None:
     away, home = g.sides[0], g.sides[1]
     a_sets, h_sets = (away.score or "").split(), (home.score or "").split()
     if g.state == "pre":
-        score = f'<span style="font-size:1.6rem">{g.start.astimezone(ET):%a %I:%M %p}</span>'
+        t = g.start.astimezone(ET)
+        score = f'<span style="font-size:1.6rem">{t:%a %b} {t.day}<br>{t:%I:%M %p}</span>'
     elif len(a_sets) > 1 or len(h_sets) > 1:     # tennis: show set by set, e.g. 6-3, 5-3
         score = html.escape(", ".join(f"{a}-{h}" for a, h in zip(a_sets, h_sets)))
     else:
@@ -217,7 +269,7 @@ def game_view(key: str) -> None:
     def row(label: str, value: str) -> str:
         return f'<div class="gd-row"><span>{html.escape(label)}</span><b>{html.escape(value)}</b></div>'
 
-    where = " · ".join(html.escape(x) for x in (g.league, d.venue, d.broadcast) if x)
+    where = " · ".join(html.escape(x) for x in (d.venue, d.broadcast) if x)
     dk = [row(away.name, american(away.dk)), row(home.name, american(home.dk))]
     if g.draw_dk is not None:
         dk.append(row("Draw", american(g.draw_dk)))
@@ -234,7 +286,8 @@ def game_view(key: str) -> None:
                       f'<small>{html.escape(s.record)}</small></div>')
     # One line with no indentation, so Markdown can't mistake any of it for a code block.
     st.markdown(
-        f'<div class="gd-head"><div class="lv-top"><span class="lv-league">{where}</span>{status_html(g)}</div>'
+        f'<div class="gd-head"><div class="lv-top">{league_html(g)}<span class="lv-league">{where}</span>'
+        f'{status_html(g)}</div>'
         f'<div class="gd-teams">{team(away)}<div class="gd-score">{score}</div>{team(home)}</div>'
         f'<div class="gd-odds"><div class="gd-box"><p class="eyebrow">DraftKings'
         f'{" (pre-game)" if g.state == "in" else ""}</p>{"".join(dk)}</div>'
@@ -284,7 +337,7 @@ if game_key:
         st.rerun()
     c2.selectbox("Chart time span", ["Last 6 hours", "Last 24 hours", "Last 3 days"], key="gd_span",
                  index=None, placeholder="Chart time span (auto)", label_visibility="collapsed")
-    st.fragment(game_view, run_every=REFRESH)(game_key)
+    st.fragment(game_view, run_every=REFRESH)(game_key, st.query_params.get("d"))
     st.stop()
 
 banner("live", "Live Odds",
@@ -292,14 +345,34 @@ banner("live", "Live Odds",
        "win chances, updating every 15 seconds. Click any game for its stats and live odds chart.",
        chips=["NFL · NBA · NHL · MLB · college", "Europe's top soccer + more", "Tennis · UFC"])
 
-with st.container(key="settings"):
-    query = st.text_input("Search games", placeholder="Team, player or league, e.g. Lakers, Arsenal, Sabalenka, UFC",
-                          key="lv_q")
+@st.cache_data(ttl=86400, show_spinner=False)
+def search_options() -> tuple[list[str], list]:
+    """Every team and league name, for the type-ahead search box."""
+    index = live.team_index()
+    names = sorted({n[0] for _, _, n in index} | {l[1] for l in live.LEAGUES}, key=str.lower)
+    return names, index
+
+
+league_names = [l[1] for l in live.LEAGUES]
+today_tab, sched_tab = st.tabs(["Live & today", "Schedule · next 7 days"])
+
+with today_tab, st.container(key="settings"):
+    names, team_idx = search_options()
+    picked = st.selectbox("Search teams, players or leagues", names, index=None, accept_new_options=True,
+                          placeholder="Start typing: Bayern, Lakers, Arsenal, Sabalenka, UFC...", key="lv_q")
+    query = (picked or "").strip()
+    fixed = live.correct(query, team_idx) if query and query not in names else None
+    if fixed:
+        st.caption(f"No exact match for “{query}”. Showing results for **{fixed}**.")
+        query = fixed
     f1, f2 = st.columns([2, 3], gap="large")
     status = f1.pills("Show", ["All", "Live now", "Upcoming", "Final"], default="All", required=True, key="lv_status")
-    league_names = [l[1] for l in live.LEAGUES]
     leagues = f2.multiselect("Leagues", league_names, default=league_names, key="lv_leagues")
     auto = st.toggle(f"Auto-refresh every {REFRESH} seconds", value=True, key="lv_auto")
+
+
+def grid(games: list[live.Game], sched: bool = False) -> str:
+    return f'<div class="lv-grid">{"".join(card(g, sched) for g in games)}</div>'
 
 
 @st.fragment(run_every=REFRESH if auto else None)
@@ -317,8 +390,17 @@ def live_board():
     n_live = sum(g.state == "in" for g in games)
     st.caption(f"Updated {fetched.astimezone(ET):%I:%M:%S %p} ET · {len(games)} games across {len(live.LEAGUES)} leagues · "
                f"{n_live} live now · DraftKings via ESPN, live chances from Kalshi · click a game for stats")
+    if query:
+        # A team's next game, however far away (one per competition it plays in).
+        ahead = [g for g in next_games(query) if g.key not in {x.key for x in shown}]
+        if ahead:
+            st.markdown(f'<div class="lv-count">Next game{"s" if len(ahead) > 1 else ""} · {html.escape(query)}</div>'
+                        + grid(ahead, sched=True), unsafe_allow_html=True)
     if not shown:
-        st.info("No games match. Try another search, more leagues, or **All**.")
+        if not query:
+            st.info("No games match. Try more leagues, or **All**.")
+        elif not ahead:
+            st.info("No games found for that search. Try a team, player or league name.")
         return
     for label, state in (("Live now", "in"), ("Upcoming", "pre"), ("Final", "post")):
         part = [g for g in shown if g.state == state]
@@ -329,7 +411,29 @@ def live_board():
                 st.caption(f"Showing 120 of {len(part)}. Search or pick leagues to narrow it down.")
 
 
-live_board()
+with today_tab:
+    live_board()
+
+with sched_tab:
+    st.markdown("Pick a league to see its games for the next week, with odds where they're posted. "
+                "Choose a day to see just that day.")
+    s1, s2 = st.columns(2, gap="large")
+    sched_league = s1.selectbox("League", league_names, index=None, placeholder="Choose a league", key="sc_league")
+    today = dt.datetime.now(ET).date()
+    days = [today + dt.timedelta(i) for i in range(8)]
+    label = lambda d: ("Today · " if d == today else "Tomorrow · " if d == today + dt.timedelta(1) else "") + \
+        f"{d:%A, %b} {d.day}"
+    sched_day = s2.selectbox("Day", days, index=None, format_func=label, placeholder="All 7 days", key="sc_day")
+    if sched_league:
+        with st.spinner(f"Loading the {sched_league} schedule..."):
+            games = schedule(sched_league, sched_day) if sched_day else week(sched_league, today)
+        if not games:
+            st.info(f"No {sched_league} games {'on ' + label(sched_day) if sched_day else 'in the next 7 days'}. "
+                    "It may be an off week or the off-season.")
+        for d in sorted({g.start.astimezone(ET).date() for g in games}):
+            part = [g for g in games if g.start.astimezone(ET).date() == d]
+            st.markdown(f'<div class="lv-day">{label(d)} · {len(part)} game{"s" if len(part) != 1 else ""}</div>'
+                        + grid(part, sched=True), unsafe_allow_html=True)
 
 st.divider()
 st.caption("Scores, stats and DraftKings odds via ESPN; live prices and charts from Kalshi's public market data. For "

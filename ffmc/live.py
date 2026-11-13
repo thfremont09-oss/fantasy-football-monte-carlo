@@ -10,9 +10,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import difflib
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from zoneinfo import ZoneInfo
 
 from .http import APIError, CachedJSON
 
@@ -396,3 +398,144 @@ def load_board(cache_dir=".ffmc_cache", leagues=LEAGUES, now: dt.datetime | None
     upcoming = sorted((g for g in keep if g.state == "pre"), key=lambda g: g.start)
     final = sorted((g for g in keep if g.state == "post"), key=lambda g: g.start, reverse=True)
     return live + upcoming + final
+
+
+EASTERN = ZoneInfo("America/New_York")
+TEAMS = "https://site.api.espn.com/apis/site/v2/sports/{path}/teams"
+
+
+def team_index(cache_dir=".ffmc_cache") -> list[tuple[str, str, list[str]]]:
+    """(league, team id, names) for every team in the team leagues; refreshed once a day."""
+    http = CachedJSON(cache_dir)
+
+    def one(lg):
+        try:
+            data = http.get(TEAMS.format(path=lg[2]), [("limit", "1000")], ttl=86400)
+        except APIError:
+            return []
+        out = []
+        for lgs in (data.get("sports") or [{}])[0].get("leagues") or []:
+            for t in lgs.get("teams") or []:
+                t = t.get("team") or {}
+                names = [t.get(k, "") for k in ("displayName", "shortDisplayName", "name", "nickname",
+                                                "location", "abbreviation") if t.get(k)]
+                if t.get("id") and names:
+                    out.append((lg[1], str(t["id"]), names))
+        return out
+
+    with ThreadPoolExecutor(12) as pool:
+        parts = pool.map(one, [l for l in LEAGUES if l[0] not in ("Tennis", "MMA")])
+    return [t for part in parts for t in part]
+
+
+def find_teams(query: str, index: list[tuple[str, str, list[str]]], limit: int = 6) -> list[tuple[str, str, str]]:
+    """Teams whose name matches the search: (league, team id, full name). Whole-name matches first."""
+    q = query.lower().strip()
+    if len(q) < 3:
+        return []
+    hits = []
+    for league, tid, names in index:
+        low = [n.lower() for n in names]
+        if q in low:
+            hits.append((0, league, tid, names[0]))
+        elif any(q in n for n in low[:5]):          # skip abbreviations for partial matches
+            hits.append((1, league, tid, names[0]))
+    order = {l[1]: i for i, l in enumerate(LEAGUES)}
+    college = lambda lg: "College" in lg            # pro teams before college teams with the same nickname
+    hits.sort(key=lambda h: (h[0], college(h[1]), order.get(h[1], 99)))
+    return [(l, t, n) for _, l, t, n in hits[:limit]]
+
+
+def correct(query: str, index: list[tuple[str, str, list[str]]]) -> str | None:
+    """Spelling fix for a search with no exact hits, e.g. 'bayren' -> 'Bayern Munich'. None if it already matches."""
+    q = query.lower().strip()
+    if len(q) < 3 or find_teams(q, index, 1) or any(q in l[1].lower() for l in LEAGUES):
+        return None
+    words: dict[str, str] = {}
+    for _, _, names in index:
+        for n in names[:5]:
+            words.setdefault(n.lower(), names[0])
+            for w in n.lower().split():
+                if len(w) > 3:
+                    words.setdefault(w, names[0])
+    for l in LEAGUES:
+        words.setdefault(l[1].lower(), l[1])
+    best = difflib.get_close_matches(q, list(words), n=1, cutoff=0.72)
+    return words[best[0]] if best else None
+
+
+def next_games(query: str, cache_dir=".ffmc_cache", now: dt.datetime | None = None) -> list[Game]:
+    """The next game (however far away) for every team matching the search, in each competition."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    http = CachedJSON(cache_dir)
+    index = team_index(cache_dir)
+    teams = find_teams(query, index) or find_teams(correct(query, index) or "", index)
+
+    def one(team):
+        league, tid, _ = team
+        sport, _, path, _ = league_info(league)
+        params = [("fixture", "true")] if sport == "Soccer" else []
+        try:
+            data = http.get(f"{TEAMS.format(path=path)}/{tid}/schedule", params, ttl=1800)
+        except APIError:
+            return None
+        upcoming = []
+        for e in data.get("events") or []:
+            state = ((e.get("competitions") or [{}])[0].get("status") or {}).get("type", {}).get("state")
+            try:
+                start = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+            except (KeyError, ValueError):
+                continue
+            if state == "in" or (state == "pre" and start > now - dt.timedelta(hours=3)):
+                upcoming.append((start, str(e.get("id"))))
+        if not upcoming:
+            return None
+        start, eid = min(upcoming)
+        day = start.astimezone(EASTERN).date()
+        return next((g for g in load_schedule(league, day, cache_dir) if g.id == eid or g.event_id == eid), None)
+
+    with ThreadPoolExecutor(6) as pool:
+        found = [g for g in pool.map(one, teams) if g is not None]
+    seen: dict[str, Game] = {}
+    for g in sorted(found, key=lambda g: g.start):
+        seen.setdefault(g.key, g)
+    return list(seen.values())
+
+
+def league_info(name: str) -> tuple[str, str, str, str]:
+    return next(l for l in LEAGUES if l[1] == name)
+
+
+def load_schedule(league: str, day: dt.date, cache_dir=".ffmc_cache") -> list[Game]:
+    """One league's games on one day (US Eastern), with both apps' odds where they're posted."""
+    sport, name, path, series = league_info(league)
+    http = CachedJSON(cache_dir)
+    # ESPN files late-night games under the next day, so ask for both and keep this day's.
+    gs = espn_games(http, path, sport, name, [day, day + dt.timedelta(1)])
+    seen: dict[str, Game] = {}
+    for g in gs:
+        if g.start.astimezone(EASTERN).date() == day:
+            seen.setdefault(g.id, g)
+    games = sorted(seen.values(), key=lambda g: g.start)
+    attach_kalshi([g for g in games if g.state != "post"], kalshi_prices(http, series), series)
+    return games
+
+
+def load_week(league: str, first: dt.date, days: int = 8, cache_dir=".ffmc_cache") -> list[Game]:
+    """One league's games from ``first`` through the next ``days`` days (US Eastern dates)."""
+    sport, name, path, series = league_info(league)
+    http = CachedJSON(cache_dir)
+    span = [first + dt.timedelta(i) for i in range(days + 1)]
+    with ThreadPoolExecutor(6) as pool:
+        parts = pool.map(lambda d: espn_games(http, path, sport, name, [d]), span)
+    seen: dict[str, Game] = {}
+    for g in (g for part in parts for g in part):
+        if first <= g.start.astimezone(EASTERN).date() < first + dt.timedelta(days):
+            seen.setdefault(g.id, g)
+    games = sorted(seen.values(), key=lambda g: g.start)
+    attach_kalshi([g for g in games if g.state != "post"], kalshi_prices(http, series), series)
+    return games
+
+
+def league_for_path(path: str) -> str | None:
+    return next((l[1] for l in LEAGUES if l[2] == path), None)

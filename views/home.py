@@ -10,7 +10,7 @@ from ffmc import fpl, madness, parlay, simulate
 from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
-PARLAYS, NICHE = "views/parlays.py", "views/niche.py"
+PARLAYS, NICHE, LIVE = "views/parlays.py", "views/niche.py", "views/live.py"
 
 
 def eyebrow(text: str) -> None:
@@ -46,7 +46,7 @@ st.markdown(f"""
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
   out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>5</b><small>Tools</small></div>
+    <div><b>6</b><small>Tools</small></div>
     <div><b>80,000+</b><small>Markets scanned</small></div>
     <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
@@ -57,6 +57,9 @@ st.markdown(f"""
 
 # ------------------------------------------------------------------- tools
 cards = [
+    ("live", "Every league · Right now", "Live Odds", LIVE, "Open Live Odds",
+     "Scores for the top leagues worldwide with DraftKings and Kalshi odds side by side, live win chances, "
+     "search, and charts of how the odds moved."),
     ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
      "Who to start this week. Connect your ESPN league or enter your roster, and see "
      "your chance of beating this week's opponent."),

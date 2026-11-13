@@ -251,3 +251,21 @@ Japan score at that level whenever Kalshi lists them).
 Defaults suit thin markets: Kalshi, single bets allowed, games in the next 7
 days, bid/ask gaps up to 20¢ (adjustable). The page shows what's on the board,
 the most obscure thing available, and the best singles and parlays.
+
+## Live Odds
+
+`views/live.py` (UI) and `ffmc/live.py` (data): scores and odds for 26 top
+leagues: NFL, college football, NBA, WNBA, men's college basketball, NHL, MLB,
+the Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League,
+Europa League, MLS, Liga MX, Eredivisie, Primeira Liga, Brasileirão, Argentina,
+Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
+
+* Scores, status and **DraftKings** lines (moneyline, spread, total; draw for
+  soccer) from ESPN's scoreboards. For games in progress that's the pre-game line.
+* **Kalshi** win chances (mid of bid and ask), which keep trading during games,
+  matched to each game by team / player names and time.
+* Search by team, player or league; filter by live / upcoming / final and by
+  league; auto-refresh every 30 seconds.
+* **Odds chart:** Kalshi's win chance over time for any game (minute by minute
+  for the last 6-24 hours, or hourly over 3 days), with DraftKings' line
+  (bookmaker's cut removed) as a dashed reference.

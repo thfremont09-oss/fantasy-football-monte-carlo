@@ -14,9 +14,10 @@ madness = st.Page("views/march_madness.py", title="March Madness", icon=":materi
 fpl = st.Page("views/fpl.py", title="Fantasy Premier League", icon=":material/sports_soccer:", url_path="fpl")
 parlays = st.Page("views/parlays.py", title="Parlay Lab", icon=":material/casino:", url_path="parlays")
 niche = st.Page("views/niche.py", title="Niche Sports", icon=":material/explore:", url_path="niche")
-PAGES = [home, football, madness, fpl, parlays, niche]
-SHORT = {"football": "NFL Lineups", "march-madness": "March Madness", "fpl": "FPL", "parlays": "Parlay Lab",
-         "niche": "Niche Sports"}                     # short labels so all tabs fit across the header
+live = st.Page("views/live.py", title="Live Odds", icon=":material/live_tv:", url_path="live")
+PAGES = [home, live, football, madness, fpl, parlays, niche]
+SHORT = {"live": "Live", "football": "NFL", "march-madness": "Bracket", "fpl": "FPL", "parlays": "Parlays",
+         "niche": "Niche"}                            # short labels so all tabs fit across the header
 page = st.navigation(PAGES, position="hidden")
 
 apply_site_css()

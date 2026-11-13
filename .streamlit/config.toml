@@ -4,16 +4,9 @@ toolbarMode = "minimal"
 [browser]
 gatherUsageStats = false
 
+# Shared by both themes. The site follows the phone/computer's light or dark setting,
+# and the Light / Dark button in the header overrides it.
 [theme]
-base = "light"
-primaryColor = "#16324f"
-backgroundColor = "#f5f6f8"
-secondaryBackgroundColor = "#eceff3"
-textColor = "#14202e"
-linkColor = "#1d5fa8"
-borderColor = "#dfe3e8"
-codeBackgroundColor = "#f0f2f5"
-dataframeHeaderBackgroundColor = "#eceff3"
 showWidgetBorder = true
 baseRadius = "small"
 baseFontSize = 15
@@ -23,5 +16,28 @@ codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono
 headingFontWeights = [700, 700, 600]
 headingFontSizes = ["2.4rem", "1.75rem", "1.3rem"]
 
-[theme.sidebar]
+[theme.light]
+primaryColor = "#16324f"
+backgroundColor = "#f5f6f8"
+secondaryBackgroundColor = "#eceff3"
+textColor = "#14202e"
+linkColor = "#1d5fa8"
+borderColor = "#dfe3e8"
+codeBackgroundColor = "#f0f2f5"
+dataframeHeaderBackgroundColor = "#eceff3"
+
+[theme.light.sidebar]
 backgroundColor = "#eceff3"
+
+[theme.dark]
+primaryColor = "#5b9cf0"
+backgroundColor = "#0d141d"
+secondaryBackgroundColor = "#18222f"
+textColor = "#e3e9f0"
+linkColor = "#7fb2f5"
+borderColor = "#2a3644"
+codeBackgroundColor = "#141d28"
+dataframeHeaderBackgroundColor = "#18222f"
+
+[theme.dark.sidebar]
+backgroundColor = "#141d28"

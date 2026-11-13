@@ -62,6 +62,12 @@ def logo_html(s: live.Side, cls: str = "lv-logo") -> str:
             if s.logo else f'<span class="{cls}"></span>')
 
 
+def result_chip(result: str) -> str:
+    """'W 31-20 vs CHI' -> a green chip; losses red, draws/ties grey."""
+    kind = {"W": "w", "L": "l"}.get(result[:1].upper(), "d")
+    return f'<span class="wl wl-{kind}">{html.escape(result)}</span>'
+
+
 def card(g: live.Game) -> str:
     rows = []
     best = max(range(len(g.sides)), key=lambda i: g.sides[i].kalshi or 0) if g.kalshi_updated else None
@@ -107,7 +113,7 @@ a.lv-cardlink, a.lv-cardlink:hover {{ text-decoration: none !important; color: i
 .lv-final {{ color: #4a5a6c; font-weight: 600; font-size: .8rem; }}
 .lv-pre {{ color: #1d3a5c; font-weight: 600; font-size: .8rem; }}
 .lv-card table {{ width: 100%; border-collapse: collapse; font-size: .9rem; border: none !important; margin: 0; }}
-.lv-card tr, .lv-card th, .lv-card td {{ border: none !important; background: none !important; }}
+.lv-card thead, .lv-card tbody, .lv-card tr, .lv-card th, .lv-card td {{ border: none !important; background: none !important; }}
 .lv-card th {{ font-size: .66rem; font-weight: 600; color: #8592a3; text-transform: uppercase; letter-spacing: .06em;
   text-align: right; padding: 0 0 .2rem .7rem !important; }}
 .lv-card td {{ padding: .28rem 0 .28rem .7rem !important; border-top: 1px solid #f0f2f5 !important; text-align: right; white-space: nowrap; color: #1c2b3a; }}
@@ -136,6 +142,11 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .gd-box {{ background: #f5f6f8; border-radius: 8px; padding: .6rem .8rem; font-size: .9rem; }}
 .gd-box p {{ margin: 0; }} .gd-box .eyebrow {{ margin-bottom: .3rem; }}
 .gd-row {{ display: flex; justify-content: space-between; gap: .5rem; padding: .12rem 0; }}
+.ffmc-wl-row {{ display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0 0 .6rem; }}
+.ffmc-wl-row b {{ min-width: 3rem; }}
+.wl {{ display: inline-block; padding: .18rem .5rem; border-radius: 5px; font-size: .82rem; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: #fff; }}
+.wl-w {{ background: #1e8e3e; }} .wl-l {{ background: #d93025; }} .wl-d {{ background: #7b8794; }}
 @media (max-width: 640px) {{ .gd-odds {{ grid-template-columns: 1fr; }} .gd-score {{ font-size: 2.3rem; }} }}
 </style>
 """
@@ -245,7 +256,8 @@ def game_view(key: str) -> None:
         if d.last_five:
             st.subheader("Last five games")
             for team, results in d.last_five:
-                st.markdown(f"**{team}** &nbsp; " + " · ".join(results))
+                st.markdown(f'<div class="ffmc-wl-row"><b>{html.escape(team)}</b>'
+                            + "".join(result_chip(r) for r in results) + "</div>", unsafe_allow_html=True)
     with right:
         if d.leaders:
             st.subheader("Leaders")
@@ -292,7 +304,11 @@ with st.container(key="settings"):
 
 @st.fragment(run_every=REFRESH if auto else None)
 def live_board():
-    with st.spinner("Loading scores and odds..."):
+    if "lv_loaded" not in st.session_state:      # spinner only on the first load, not on every refresh
+        with st.spinner("Loading scores and odds..."):
+            games, fetched = board()
+        st.session_state["lv_loaded"] = True
+    else:
         games, fetched = board()
     shown = [g for g in games if g.league in set(leagues) and (not query or g.matches(query))]
     want = {"Live now": "in", "Upcoming": "pre", "Final": "post"}.get(status)

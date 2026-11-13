@@ -46,6 +46,12 @@ header[data-testid="stHeader"], .stAppHeader, [data-testid="stToolbar"], [data-t
    closed by accident or cut off by a narrow column. */
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="stExpandSidebarButton"] {{ display: none !important; }}
 a, button {{ touch-action: manipulation; }}
+/* While a page refreshes, Streamlit normally fades the old content ("cloudy"). Keep it
+   solid and steady instead; the new numbers simply replace the old ones. */
+[data-stale="true"], .stale-element, [data-testid="stElementContainer"][data-stale="true"] *,
+[data-testid="stVerticalBlock"][data-stale="true"] {{ opacity: 1 !important; filter: none !important;
+  transition: none !important; }}
+[data-testid="stSkeleton"] {{ display: none !important; }}
 
 /* ---------- site header (full-width navy band) ---------- */
 .st-key-site_header {{ background: {NAVY}; box-shadow: 0 0 0 100vmax {NAVY}; clip-path: inset(-100vmax -100vmax 0 -100vmax);
@@ -72,6 +78,14 @@ a, button {{ touch-action: manipulation; }}
 .st-key-site_header [data-testid="stPopover"] button {{ min-height: 46px; padding: 0 1rem; background: transparent;
   border: 1px solid rgba(255,255,255,.35); color: #fff; }}
 .st-key-site_header [data-testid="stPopover"] button * {{ color: #fff !important; }}
+/* light / dark switch */
+.st-key-site_header [data-testid="stColumn"]:has(.st-key-theme_col) {{ flex: 0 0 auto !important; width: auto !important; }}
+.st-key-theme_col button {{ min-height: 46px; padding: 0 .9rem; background: transparent !important;
+  border: 1px solid rgba(255,255,255,.35) !important; min-width: 0 !important; }}
+.st-key-theme_col button * {{ color: #fff !important; font-size: .95rem; }}
+.st-key-theme_col iframe {{ display: none; }}
+@media (hover: hover) {{ .st-key-theme_col button:hover {{ border-color: #f2b134 !important; }} }}
+@media (max-width: 480px) {{ .st-key-theme_col button p {{ display: none; }} }}
 @media (min-width: 900px) {{ [data-testid="stColumn"]:has(.st-key-menu_col) {{ display: none !important; }} }}
 @media (max-width: 899px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
   [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 1 1 auto !important; width: auto !important; }} }}
@@ -165,8 +179,77 @@ p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; 
 """
 
 
+# Dark mode: Streamlit recolors its own widgets from .streamlit/config.toml ([theme.dark]);
+# these rules recolor the site's own cards, panels and text to match.
+DARK_RULES = """
+.st-key-settings, [class*="st-key-card_"], .lv-card, .gd-head { background: #151f2b !important; border-color: #2a3644 !important; }
+div[style*="background:#fff"] { background: #151f2b !important; border-color: #2a3644 !important; }
+[style*="color:#3b4857"], [style*="color:#4a5a6c"], [style*="color:#6b7889"], p.lead, .step p { color: #b8c4d2 !important; }
+.eyebrow, .lv-league, .lv-final { color: #9fb0c3 !important; }
+.banner .eyebrow, .hero .eyebrow { color: rgba(255,255,255,.75) !important; }
+.hero .eyebrow { color: #f2b134 !important; }
+.st-key-menu_items a[data-testid="stPageLink-NavLink"]:active { background: #1c2836 !important; }
+@media (hover: hover) { .st-key-menu_items a[data-testid="stPageLink-NavLink"]:hover { background: #1c2836 !important; }
+  [class*="st-key-card_"]:hover { border-color: #3c4b5d !important; box-shadow: 0 8px 22px rgba(0,0,0,.45) !important; } }
+.lv-card.is-live { border-color: #7a2f35 !important; }
+.lv-card td { color: #dbe3ec !important; border-top-color: #222e3c !important; }
+.lv-card th, .lv-team small, .lv-foot, .gd-team small { color: #8d9cad !important; }
+tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b { color: #f3f6f9 !important; }
+.lv-pre { color: #a9c7ee !important; } .lv-live { color: #ff6b6b !important; }
+.lv-bar { background: #263241 !important; }
+.gd-box { background: #1c2836 !important; color: #dbe3ec; }
+div[style*="background:#e3e7ee"] { background: #263241 !important; }
+.ffmc-wl-row { color: #dbe3ec; }
+"""
+
+
+def is_dark() -> bool | None:
+    """True/False once the browser has told us its theme; None on the very first run."""
+    try:
+        t = st.context.theme.type
+    except Exception:
+        return None
+    return None if t is None else t == "dark"
+
+
 def apply_site_css() -> None:
-    st.markdown(SITE_CSS, unsafe_allow_html=True)
+    dark = is_dark()
+    if dark:
+        extra = DARK_RULES
+    elif dark is None:   # not known yet: follow the device setting until the browser reports it
+        extra = f"@media (prefers-color-scheme: dark) {{ {DARK_RULES} }}"
+    else:
+        extra = ""
+    st.markdown(SITE_CSS + (f"<style>{extra}</style>" if extra else ""), unsafe_allow_html=True)
+
+
+THEME_JS = """
+<script>
+// Remember the chosen theme the way Streamlit does (per page path), then reload to apply it.
+const w = window.parent, pages = %s, cur = %s, mode = %s;
+let path = w.location.pathname.replace(/\\/$/, "");
+let base = cur && path.endsWith("/" + cur) ? path.slice(0, -cur.length - 1) : path;
+for (const p of pages) {
+  for (const k of [base + "/" + p, (base + "/" + p).replace(/\\/$/, "")]) {
+    w.localStorage.setItem("stActiveTheme-" + (k || "/") + "-v2", JSON.stringify(mode));
+  }
+}
+w.location.reload();
+</script>
+"""
+
+
+def theme_button(pages: list[str], current: str) -> None:
+    """Light / Dark switch for the header."""
+    import json
+
+    import streamlit.components.v1 as components
+
+    dark = bool(is_dark())
+    if st.button("Light" if dark else "Dark", icon=":material/light_mode:" if dark else ":material/dark_mode:",
+                 key="theme_toggle", help="Switch to light mode" if dark else "Switch to dark mode"):
+        components.html(THEME_JS % (json.dumps(pages), json.dumps(current), json.dumps("Light" if dark else "Dark")),
+                        height=0)
 
 
 def banner(sport: str, title: str, text: str, chips: list[str] | None = None) -> None:

@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from ffmc.ui import APP_VERSION, apply_site_css
+from ffmc.ui import APP_VERSION, apply_site_css, theme_button
 
 st.set_page_config(page_title="Monte Carlo Sports Lab", page_icon=":material/query_stats:", layout="wide")
 
@@ -23,7 +23,9 @@ page = st.navigation(PAGES, position="hidden")
 apply_site_css()
 
 with st.container(key="site_header"):
-    brand, nav, menu = st.columns([3, 6, 1], vertical_alignment="center")
+    brand, nav, theme, menu = st.columns([3, 6, 1, 1], vertical_alignment="center")
+    with theme, st.container(key="theme_col"):
+        theme_button([p.url_path for p in PAGES], page.url_path)
     with brand, st.container(key="brand"):
         st.page_link(home, label="Monte Carlo Sports Lab")
     # Desktop: plain links across the header. Phones: a menu button instead (CSS picks one).

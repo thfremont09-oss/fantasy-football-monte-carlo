@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13b"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13c"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -29,6 +29,10 @@ SITE_CSS = f"""
 .block-container {{ max-width: 1160px; padding-top: 0 !important; }}
 [data-testid="stDecoration"] {{ display: none; }}
 header[data-testid="stHeader"] {{ background: transparent; height: 0; }}
+/* Streamlit Cloud adds Share / star / GitHub icons here. They sat invisibly on top of our
+   header links and blocked hovering and clicking on parts of them, so hide them. */
+[data-testid="stToolbar"], [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"],
+[data-testid="stMainMenu"] {{ display: none !important; }}
 /* Streamlit's invisible top bar must never swallow taps meant for our header */
 header[data-testid="stHeader"] * {{ pointer-events: none !important; }}
 header[data-testid="stHeader"] button, header[data-testid="stHeader"] button *,
@@ -135,6 +139,14 @@ p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; 
 [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] {{ display: flex; align-items: center; width: 100%;
   min-height: 48px; padding: 0 .9rem; border-radius: 6px; background: {NAVY}; }}
 [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] * {{ color: #fff !important; font-weight: 600; }}
+/* The whole card is clickable: the link's hit area is stretched over the entire card. */
+[class*="st-key-card_"] {{ position: relative; cursor: pointer; transition: box-shadow .15s, transform .15s; }}
+[class*="st-key-card_"] [class*="st-key-cardlink_"], [class*="st-key-card_"] [class*="st-key-cardlink_"] * {{ position: static !important; }}
+[class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"]::after {{ content: ""; position: absolute; inset: 0; z-index: 2; }}
+@media (hover: hover) {{
+  [class*="st-key-card_"]:hover {{ box-shadow: 0 8px 22px rgba(12,26,43,.14); transform: translateY(-2px); border-color: #c4ccd6; }}
+  [class*="st-key-card_"]:hover [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] {{ background: #1d3a5c; }}
+}}
 
 /* step tiles */
 .step {{ border-left: 4px solid #f2b134; padding: .2rem 0 .2rem .9rem; }}

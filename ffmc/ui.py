@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-13i"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-13j"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -31,15 +31,11 @@ SITE_CSS = f"""
 /* ---------- frame ---------- */
 .block-container {{ max-width: 1160px; padding-top: 0 !important; }}
 [data-testid="stDecoration"] {{ display: none; }}
-header[data-testid="stHeader"] {{ background: transparent; height: 0; }}
-/* Streamlit Cloud adds Share / star / GitHub icons here. They sat invisibly on top of our
-   header links and blocked hovering and clicking on parts of them, so hide them. */
-[data-testid="stToolbar"], [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"],
-[data-testid="stMainMenu"] {{ display: none !important; }}
-/* Streamlit's invisible top bar must never swallow taps meant for our header */
-header[data-testid="stHeader"] * {{ pointer-events: none !important; }}
-header[data-testid="stHeader"] button, header[data-testid="stHeader"] button *,
-header[data-testid="stHeader"] a, header[data-testid="stHeader"] a * {{ pointer-events: auto !important; }}
+/* Streamlit's own top bar (and the Share / GitHub icons Streamlit Cloud adds to it) sat
+   invisibly on top of our header tabs and swallowed clicks. There's no sidebar to toggle,
+   so remove that bar entirely. */
+header[data-testid="stHeader"], .stAppHeader, [data-testid="stToolbar"], [data-testid="stToolbarActions"],
+[data-testid="stAppDeployButton"], [data-testid="stMainMenu"] {{ display: none !important; pointer-events: none !important; }}
 /* No sidebar: every page keeps its settings in a panel at the top, so nothing can be
    closed by accident or cut off by a narrow column. */
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="stExpandSidebarButton"] {{ display: none !important; }}
@@ -47,7 +43,7 @@ a, button {{ touch-action: manipulation; }}
 
 /* ---------- site header (full-width navy band) ---------- */
 .st-key-site_header {{ background: {NAVY}; box-shadow: 0 0 0 100vmax {NAVY}; clip-path: inset(-100vmax -100vmax 0 -100vmax);
-  padding: 0.85rem 0; margin-bottom: 1.6rem; }}
+  padding: 0.85rem 0; margin-bottom: 1.6rem; position: relative; z-index: 1000005; }}   /* in front of everything */
 .st-key-site_header [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap; gap: 1rem; align-items: center; }}
 .st-key-site_header [data-testid="stColumn"] {{ min-width: 0 !important; }}
 .st-key-site_header [data-testid="stColumn"]:last-child {{ flex: 0 0 auto !important; width: auto !important; }}
@@ -59,8 +55,8 @@ a, button {{ touch-action: manipulation; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ background: none !important; border-radius: 0;
-  border-bottom: 3px solid transparent; padding: 1.1rem 0.7rem 0.35rem; margin-top: -0.75rem;
-  min-height: 56px; display: flex; align-items: center; }}   /* taller tap area that reaches up into the bar */
+  border-bottom: 3px solid transparent; padding: 0.4rem 0.8rem 1.1rem; margin: -0.85rem 0 -0.85rem;
+  min-height: 82px; display: flex; align-items: center; }}   /* tap area = the full height of the navy bar */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{ color: #c9d3df !important; font-weight: 600; font-size: .95rem; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] span {{ color: #c9d3df !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] {{ border-bottom-color: #f2b134 !important; }}

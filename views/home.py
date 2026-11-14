@@ -12,6 +12,7 @@ from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
 F1 = "views/f1.py"
 PARLAYS, NICHE, LIVE = "views/parlays.py", "views/niche.py", "views/live.py"
+BETS = "views/bets.py"
 
 
 def eyebrow(text: str) -> None:
@@ -47,7 +48,7 @@ st.markdown(f"""
   <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
   out a million times with real data, then tell you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>7</b><small>Tools</small></div>
+    <div><b>8</b><small>Tools</small></div>
     <div><b>80,000+</b><small>Markets scanned</small></div>
     <div><b>1,000,000</b><small>Simulations per run</small></div>
     <div><b>Live</b><small>Data, refreshed hourly</small></div>
@@ -61,6 +62,9 @@ cards = [
     ("live", "Every league · Right now", "Live Odds", LIVE, "Open Live Odds",
      "Scores for the top leagues worldwide with DraftKings and Kalshi odds side by side, live win chances, "
      "search, and a page for every game with stats and a live odds chart, updated every 15 seconds."),
+    ("bets", "Kalshi or DraftKings · Right now", "Best Bets Now", BETS, "Open Best Bets",
+     "The best win/lose bets on today's and tomorrow's games: each app's price checked against the other, "
+     "every pick played out a million times."),
     ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
      "Who to start this week. Connect your ESPN league or enter your roster, and see "
      "your chance of beating this week's opponent."),
@@ -82,11 +86,12 @@ cards = [
 ]
 for row in (cards[:4], cards[4:]):
     for col, (sport, label, title, path, cta, text) in zip(st.columns(len(row), gap="medium"), row):
-        with col, st.container(key=f"card_{sport}"):
+        slug = path.split("/")[-1].removesuffix(".py")       # unique per card (two cards can share a color)
+        with col, st.container(key=f"card_{slug}"):
             st.markdown(card_top(sport, label), unsafe_allow_html=True)
             st.subheader(title)
             st.markdown(f'<p class="card-text">{text}</p>', unsafe_allow_html=True)
-            with st.container(key=f"cardlink_{sport}"):
+            with st.container(key=f"cardlink_{slug}"):
                 st.page_link(path, label=cta, icon=":material/arrow_forward:", width="stretch")
 
 # ------------------------------------------------------------ how it works

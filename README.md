@@ -308,7 +308,7 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   stats from ESPN's game summary: team stats (season averages before kick-off),
   leaders, ESPN's matchup predictor, recent plays and each team's last five.
   Tennis and UFC have no ESPN summary, so they show score, odds and chart.
-* **Best bets now** tab (`ffmc/bestbets.py`): moneyline bets on games that
+* **Best Bets Now** page (`views/bets.py`, "Bets" in the header; logic in `ffmc/bestbets.py`): moneyline bets on games that
   haven't started, on Kalshi or DraftKings (switch between them). A DraftKings
   bet's fair chance comes from Kalshi's price; a Kalshi bet's from DraftKings'
   line with the cut removed (and Kalshi's 0.07 x p x (1-p) fee is included);

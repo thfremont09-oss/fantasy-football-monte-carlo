@@ -128,7 +128,8 @@ with st.container(key="settings"):
             st.info("Demo mode uses a fake league matchup.")
 
     slots = list(DEFAULT_SLOTS)
-    e1, e2 = st.columns(2, gap="medium")
+    # Two expanders side by side when there's a lineup-slots one; otherwise one full-width row.
+    e1, e2 = st.columns(2, gap="medium") if mode != "My ESPN league" else (st.container(), None)
     if mode != "My ESPN league":
         with e1.expander("Lineup slots"):
             st.caption("ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")

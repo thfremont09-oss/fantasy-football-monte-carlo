@@ -18,8 +18,8 @@ headingFontSizes = ["2.4rem", "1.75rem", "1.3rem"]
 
 [theme.light]
 primaryColor = "#16324f"
-backgroundColor = "#f5f6f8"
-secondaryBackgroundColor = "#eceff3"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f3f6"
 textColor = "#14202e"
 linkColor = "#1d5fa8"
 borderColor = "#dfe3e8"

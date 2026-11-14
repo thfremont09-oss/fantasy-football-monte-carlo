@@ -56,7 +56,9 @@ with today_tab, st.container(key="settings"):
         query = fixed
     f1, f2 = st.columns([2, 3], gap="large")
     status = f1.pills("Show", ["All", "Live now", "Upcoming", "Final"], default="All", required=True, key="lv_status")
-    leagues = f2.multiselect("Leagues", league_names, default=league_names, key="lv_leagues")
+    picked_leagues = f2.multiselect("Leagues", league_names, default=[], key="lv_leagues",
+                                    placeholder="All leagues (or pick some)")
+    leagues = picked_leagues or league_names     # nothing picked = every league
     auto = st.toggle(f"Auto-refresh every {REFRESH} seconds", value=True, key="lv_auto")
 
 

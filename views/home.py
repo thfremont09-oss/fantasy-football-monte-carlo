@@ -26,61 +26,62 @@ def real_code(*fns) -> None:
 
 
 # --------------------------------------------------------------------- hero
-stripes = "".join(f'<span style="background:{s["color"]}"></span>' for s in SPORTS.values())
 st.markdown(f"""
 <style>
-.hero {{ background: repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 1px, transparent 1px 80px),
-  linear-gradient(135deg, {NAVY} 0%, #17324f 100%); border-radius: 12px; padding: 2.4rem 2rem 2rem; color: #fff;
-  margin-bottom: 1.6rem; }}
-.hero .eyebrow {{ color: #f2b134; }}
-.hero h1 {{ color: #fff; font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1; margin: .3rem 0 .9rem; padding: 0;
-  text-transform: uppercase; font-weight: 700; max-width: 16ch; }}
-.hero p {{ color: #c9d3df; font-size: 1.1rem; line-height: 1.6; max-width: 60ch; margin: 0; }}
-.hero .bar {{ display: flex; gap: 6px; margin-top: 1.4rem; }}
-.hero .bar span {{ height: 6px; width: 64px; border-radius: 3px; }}
-.hero .facts {{ display: flex; gap: 2.2rem; flex-wrap: wrap; margin-top: 1.4rem; }}
-.hero .facts b {{ display: block; font-family: "Barlow Condensed", sans-serif; font-size: 1.9rem; color: #fff; line-height: 1; }}
-.hero .facts small {{ color: #9fb0c3; text-transform: uppercase; letter-spacing: .1em; font-size: .7rem; font-weight: 600; }}
+.hero {{ padding: .6rem 0 1.6rem; margin-bottom: 1.6rem; border-bottom: 1px solid #dfe3e8; }}
+.hero .kicker {{ font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #c0392b;
+  margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }}
+.hero .kicker i {{ width: 10px; height: 10px; background: #c0392b; display: inline-block; }}
+.hero h1 {{ font-size: clamp(2.6rem, 7vw, 4.6rem) !important; line-height: .95 !important; margin: 0 0 .9rem !important;
+  padding: 0 !important; text-transform: uppercase; font-weight: 700; color: {NAVY}; max-width: 15ch; }}
+.hero .dek {{ font-size: 1.15rem; line-height: 1.6; color: #3b4857; max-width: 62ch; margin: 0; }}
+.hero .facts {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 1.6rem;
+  border-top: 1px solid #dfe3e8; }}
+.hero .facts div {{ padding: .9rem 1rem .2rem; border-left: 1px solid #dfe3e8; }}
+.hero .facts div:first-child {{ border-left: none; padding-left: 0; }}
+.hero .facts b {{ display: block; font-family: "Barlow Condensed", sans-serif; font-size: 2.2rem; line-height: 1; }}
+.hero .facts small {{ color: #5b6878; font-size: .82rem; }}
+@media (max-width: 640px) {{ .hero .facts {{ grid-template-columns: 1fr 1fr; }}
+  .hero .facts div:nth-child(3) {{ border-left: none; padding-left: 0; }} }}
 </style>
 <div class="hero">
-  <p class="eyebrow">Simulation-based sports analytics</p>
+  <p class="kicker"><i></i>Simulation-based sports analytics</p>
   <h1>Every game, played 1,000,000 times.</h1>
-  <p>Projections give you one number. These tools play the week, the gameweek or the whole tournament
-  out a million times with real data, then tell you which choice comes out ahead most often.</p>
+  <p class="dek">Projections give you one number. These tools play the week, the race weekend or the whole
+  tournament out a million times with real data, then show you which choice comes out ahead most often.</p>
   <div class="facts">
-    <div><b>8</b><small>Tools</small></div>
-    <div><b>80,000+</b><small>Markets scanned</small></div>
-    <div><b>1,000,000</b><small>Simulations per run</small></div>
-    <div><b>Live</b><small>Data, refreshed hourly</small></div>
+    <div><b>8</b><small>tools</small></div>
+    <div><b>80,000+</b><small>markets scanned</small></div>
+    <div><b>1,000,000</b><small>simulations per run</small></div>
+    <div><b>Live</b><small>data, refreshed all day</small></div>
   </div>
-  <div class="bar">{stripes}</div>
 </div>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------- tools
 cards = [
-    ("live", "Every league · Right now", "Live Odds", LIVE, "Open Live Odds",
+    ("live", "Live · Every league", "Live Odds", LIVE, "Open Live Odds",
      "Scores for the top leagues worldwide with DraftKings and Kalshi odds side by side, live win chances, "
      "search, and a page for every game with stats and a live odds chart, updated every 15 seconds."),
-    ("bets", "Kalshi or DraftKings · Right now", "Best Bets Now", BETS, "Open Best Bets",
+    ("bets", "Kalshi + DraftKings", "Best Bets Now", BETS, "Open Best Bets",
      "The best win/lose bets on today's and tomorrow's games: each app's price checked against the other, "
      "every pick played out a million times."),
-    ("nfl", "NFL · Every week", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
+    ("nfl", "NFL · Weekly", "Fantasy Football Lineups", FOOTBALL, "Open lineup optimizer",
      "Who to start this week. Connect your ESPN league or enter your roster, and see "
      "your chance of beating this week's opponent."),
     ("ncaa", "NCAA · March", "March Madness Bracket", MADNESS, "Open bracket simulator",
      "Title odds for every team and a complete bracket to fill out. Shows a projected field until "
      "Selection Sunday, then the real bracket."),
-    ("epl", "Premier League · Every gameweek", "Fantasy Premier League", FPL, "Open FPL team picker",
+    ("epl", "Premier League · Weekly", "Fantasy Premier League", FPL, "Open FPL team picker",
      "Your best XI, bench order and captain, on any budget from £100m up or none at all. Or enter your "
      "FPL team ID."),
-    ("f1", "Formula 1 · Every race weekend", "F1 Fantasy", F1, "Open F1 Fantasy picker",
+    ("f1", "Formula 1 · Race weekends", "F1 Fantasy", F1, "Open F1 Fantasy picker",
      "The best 5 drivers and 2 constructors for the F1 app's fantasy game, on your budget, plus who gets "
      "the DRS Boost. Prices straight from F1 Fantasy."),
-    ("bets", "DraftKings + Kalshi · Every day", "Parlay Lab", PARLAYS, "Open Parlay Lab",
+    ("bets", "Parlays · Every day", "Parlay Lab", PARLAYS, "Open Parlay Lab",
      "The best parlays for your risk and payout, from 80,000+ DraftKings and Kalshi markets, niche sports "
      "included, each tested on a million simulated slates."),
-    ("niche", "Off the beaten path · Every day", "Niche Sports", NICHE, "Open Niche Sports",
+    ("niche", "Off the beaten path", "Niche Sports", NICHE, "Open Niche Sports",
      "Russian table tennis, Bosnian basketball, Valorant, women's cricket: every obscure market on the board, "
      "ranked by a Niche-o-meter, with the best bets for your risk and payout."),
 ]
@@ -106,8 +107,8 @@ steps = [
     ("3. Count the wins", "Look at all those results and count. The lineup, bracket or captain that comes "
                           "out on top most often is your best bet, and you see the odds behind it."),
 ]
-for col, (title, text) in zip(st.columns(3, gap="medium"), steps):
-    col.markdown(f'<div class="step"><b>{title}</b><p>{text}</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="grid">' + "".join(f'<div class="tile step"><b>{title}</b><p>{text}</p></div>'
+                                           for title, text in steps) + "</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------ how many simulations
 st.write("")
@@ -124,17 +125,14 @@ def wobble(n: int) -> str:
 
 
 sims = [("nfl", "NFL lineups", "weeks", "a few seconds"), ("ncaa", "March Madness", "tournaments", "about a second"),
-        ("epl", "Fantasy Premier League", "gameweeks", "a minute or two"),
-        ("bets", "Parlay Lab", "slates", "under a minute")]
-for col, (sport, name, unit, speed) in zip(st.columns(4, gap="medium"), sims):
-    c = SPORTS[sport]["color"]
-    col.markdown(f"""
-<div style="background:#fff;border:1px solid #dfe3e8;border-top:4px solid {c};border-radius:8px;padding:.9rem 1rem">
-  <p class="eyebrow" style="color:{c}">{name}</p>
-  <div style="font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:700;line-height:1">1,000,000</div>
-  <p style="margin:.15rem 0 .6rem;color:#3b4857">{unit} per run · takes {speed}</p>
-  <p style="margin:0;color:#3b4857;font-size:.92rem">A 50% chance comes out within <b>{wobble(1_000_000)} points</b>.</p>
-</div>""", unsafe_allow_html=True)
+        ("epl", "Premier League", "gameweeks", "a minute or two"), ("f1", "F1 Fantasy", "race weekends", "about 10 seconds"),
+        ("bets", "Parlay Lab", "slates", "under a minute"), ("live", "Best Bets", "games per bet", "a few seconds")]
+st.markdown('<div class="grid g3">' + "".join(
+    f'<div class="tile" style="border-top:4px solid {SPORTS[sport]["color"]}">'
+    f'<p class="eyebrow" style="color:{SPORTS[sport]["color"]}">{name}</p><div class="big">1,000,000</div>'
+    f'<p>{unit} per run · takes {speed}</p>'
+    f'<p>A 50% chance comes out within <b>{wobble(1_000_000)} points</b>.</p></div>'
+    for sport, name, unit, speed in sims) + "</div>", unsafe_allow_html=True)
 st.caption("Want a faster answer? Pick fewer simulations under Simulation settings on each tool.")
 
 # -------------------------------------------------------------- what's used
@@ -152,15 +150,17 @@ inputs = {
             "expected assists (xA) per 90 minutes", "How often each player starts, and their injury status",
             "Saves, defensive actions and FPL's scoring rules", "Player prices and your budget (or none)",
             "This gameweek's fixtures, including doubles and blanks"],
+    "f1": ["Official F1 Fantasy prices and every driver's fantasy points per race", "Grid, finish and "
+           "retirements in each driver's last 6 races", "Kalshi's odds for the race winner, podium, top 5 and top 10",
+           "F1 Fantasy's scoring: qualifying, race, overtakes, fastest lap, DNFs"],
     "bets": ["DraftKings moneylines, spreads and totals for 24 leagues", "Every open Kalshi sports market: "
              "winners, spreads, totals and player props", "Each price with the bookmaker's cut removed",
              "Your risk, payout, number of legs, sports and bet types"],
 }
-for col, (sport, items) in zip(st.columns(4, gap="medium"), inputs.items()):
-    s = SPORTS[sport]
-    col.markdown(f'<p class="eyebrow" style="color:{s["color"]}">{s["label"]}</p>' +
-                 "".join(f"<p style='margin:.35rem 0;border-left:3px solid {s['color']};padding-left:.6rem'>{i}</p>"
-                         for i in items), unsafe_allow_html=True)
+st.markdown('<div class="grid">' + "".join(
+    f'<div class="tile" style="--c:{SPORTS[sport]["color"]}"><p class="eyebrow" style="color:{SPORTS[sport]["color"]}">'
+    f'{SPORTS[sport]["label"]}</p><ul>' + "".join(f"<li>{i}</li>" for i in items) + "</ul></div>"
+    for sport, items in inputs.items()) + "</div>", unsafe_allow_html=True)
 
 # --------------------------------------------------------------- the code
 st.write("")

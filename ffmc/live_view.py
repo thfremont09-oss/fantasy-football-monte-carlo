@@ -147,11 +147,11 @@ CSS = f"""
 <style>
 .lv-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: .8rem; margin: .4rem 0 1.2rem; }}
 a.lv-cardlink, a.lv-cardlink:hover {{ text-decoration: none !important; color: inherit !important; display: block; }}
-.lv-card {{ background: #fff; border: 1px solid #dfe3e8; border-radius: 10px; padding: .7rem .85rem .55rem; cursor: pointer;
+.lv-card {{ background: #fff; border: 1px solid #dfe3e8; border-radius: 6px; padding: .7rem .85rem .55rem; cursor: pointer;
   transition: box-shadow .15s, transform .15s, border-color .15s; height: 100%; }}
 @media (hover: hover) {{ a.lv-cardlink:hover .lv-card {{ box-shadow: 0 8px 22px rgba(12,26,43,.12); transform: translateY(-2px);
   border-color: {COLOR}; }} }}
-.lv-card.is-live {{ border-color: #f0b3b3; box-shadow: 0 0 0 2px rgba(214,40,40,.08); }}
+.lv-card.is-live {{ box-shadow: inset 3px 0 0 #d93025; }}
 .lv-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; gap: .5rem; }}
 .lv-league {{ font-size: .7rem; font-weight: 600; color: #4a5a6c; display: inline-flex; align-items: center; gap: .45rem;
   flex-wrap: wrap; min-width: 0; }}
@@ -184,7 +184,7 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .lv-count {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.35rem; font-weight: 700; text-transform: uppercase;
   margin: .6rem 0 .1rem; color: #14202e; }}
 /* detail view */
-.gd-head {{ background: #fff; border: 1px solid #dfe3e8; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }}
+.gd-head {{ background: #fff; border: 1px solid #dfe3e8; border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1rem; }}
 .gd-head .lv-top {{ margin-bottom: .8rem; }}
 .gd-teams {{ display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem; }}
 .gd-team {{ display: flex; flex-direction: column; align-items: center; text-align: center; gap: .3rem; }}
@@ -420,9 +420,6 @@ def bet_card(b: bestbets.Bet, stake: float) -> str:
 
 def render_best_bets() -> None:
     """The Best Bets section: controls, then the simulated picks as cards."""
-    st.markdown("Moneyline bets on games that haven't started, where one app's price looks generous compared with "
-                "the other app (plus a little of our own Monte Carlo). Each pick is played out 1,000,000 times, "
-                "allowing for the fair chance itself being uncertain.")
     with st.container(key="bb_settings"):
         b1, b2 = st.columns(2, gap="large")
         book = b1.pills("Bet with", ["Kalshi", "DraftKings"], default="Kalshi", required=True, key="bb_book")

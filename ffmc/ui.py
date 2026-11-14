@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-14e"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-14f"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
+SHADOW = "none"
 INK = "#14202e"
 BORDER = "#dfe3e8"
 
@@ -57,8 +58,15 @@ a, button {{ touch-action: manipulation; }}
 [data-testid="stSkeleton"] {{ display: none !important; }}
 
 /* ---------- site header (full-width navy band) ---------- */
-.st-key-site_header {{ background: {NAVY}; box-shadow: 0 0 0 100vmax {NAVY}; clip-path: inset(-100vmax -100vmax 0 -100vmax);
-  padding: 0.85rem 0; margin-bottom: 1.6rem; position: relative; z-index: 1000005; }}   /* in front of everything */
+.st-key-site_header {{ background: {NAVY}; padding: 0 !important; height: 76px !important; min-height: 76px !important;
+  justify-content: center; box-sizing: border-box; overflow: visible;
+  margin-bottom: 1.8rem; position: relative;
+  z-index: 1000005;                                  /* in front of everything */
+  clip-path: inset(-200px -100vmax 0 -100vmax); }}   /* nothing pokes out below the band */
+/* the navy band runs edge to edge (and up to the top of the window): one solid layer, no seams */
+.st-key-site_header::before {{ content: ""; position: absolute; top: -200px; bottom: 0; left: 50%; width: 100vw;
+  transform: translateX(-50%); background: {NAVY}; z-index: -1; }}
+[data-testid="stMain"], [data-testid="stAppViewContainer"] {{ overflow-x: hidden; }}
 .st-key-site_header [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap; gap: 1rem; align-items: center; }}
 .st-key-site_header [data-testid="stColumn"] {{ min-width: 0 !important; }}
 .st-key-site_header [data-testid="stColumn"]:last-child {{ flex: 0 0 auto !important; width: auto !important; }}
@@ -70,8 +78,8 @@ a, button {{ touch-action: manipulation; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ background: none !important; border-radius: 0;
-  border-bottom: 3px solid transparent; padding: 0.4rem 0.8rem 1.1rem; margin: -0.85rem 0 -0.85rem;
-  min-height: 82px; display: flex; align-items: center; }}   /* tap area = the full height of the navy bar */
+  border-bottom: 3px solid transparent; border-top: 3px solid transparent; padding: 0 0.8rem;
+  height: 76px; min-height: 76px; display: flex; align-items: center; }}   /* tap area = the full height of the navy bar */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{ color: #c9d3df !important; font-weight: 600; font-size: .95rem; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] span {{ color: #c9d3df !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] {{ border-bottom-color: #f2b134 !important; }}
@@ -94,6 +102,8 @@ a, button {{ touch-action: manipulation; }}
 @media (max-width: 899px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
   [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 1 1 auto !important; width: auto !important; }} }}
 .st-key-brand p {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+@media (max-width: 520px) {{ .st-key-brand p {{ font-size: 1.22rem !important; letter-spacing: .01em; }}
+  .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }} }}
 /* menu panel: whole rows are tap targets */
 [data-testid="stPopoverBody"]:has(.st-key-menu_items) {{ min-width: min(330px, 92vw); padding: 0.4rem; }}
 .st-key-menu_items {{ gap: 2px; }}
@@ -108,7 +118,7 @@ a, button {{ touch-action: manipulation; }}
 
 /* ---------- big tap targets for every control (48px is the comfortable thumb size) ---------- */
 .stButton button, .stDownloadButton button, .stFormSubmitButton button {{ min-height: 48px; padding: 0 1.4rem;
-  font-size: 1rem; font-weight: 600; }}
+  font-size: 1rem; font-weight: 600; border-radius: 6px; }}
 .stButton button[kind="primary"] {{ min-width: 160px; }}
 [data-testid="stPopover"] button {{ min-height: 48px; }}
 [data-testid="stBaseButton-headerNoPadding"], [data-testid="stSidebarCollapseButton"] button {{ min-width: 44px; min-height: 44px; }}
@@ -116,8 +126,12 @@ a, button {{ touch-action: manipulation; }}
 /* tabs */
 [data-testid="stTab"] {{ min-height: 48px; padding: 0 1rem !important; display: flex; align-items: center; }}
 [data-testid="stTab"] p {{ font-size: 1rem; font-weight: 600; }}
+[data-testid="stTab"][aria-selected="false"] p {{ opacity: .62; }}
+[data-testid="stTabs"] {{ margin-top: .2rem; }}
 /* expanders */
 [data-testid="stExpander"] summary {{ min-height: 48px; display: flex; align-items: center; }}
+[data-testid="stExpander"] details {{ border-radius: 6px !important; background: #fff; }}
+[data-testid="stExpander"] summary p {{ font-weight: 600; }}
 /* radio buttons and checkboxes: the whole row is tappable */
 .stRadio [role="radiogroup"] label, .stCheckbox label {{ min-height: 44px; display: flex; align-items: center;
   width: 100%; padding: 2px 0; cursor: pointer; }}
@@ -130,8 +144,26 @@ a[data-testid="stPageLink-NavLink"] {{ min-height: 44px; display: flex; align-it
 [data-testid="stSegmentedControl"] button, .stPills button {{ min-height: 44px; }}
 
 /* ---------- settings panel ---------- */
-.st-key-settings, .st-key-bb_settings {{ background: #fff; border: 1px solid {BORDER}; border-radius: 10px; padding: 1rem 1.1rem 1.1rem !important;
-  margin-bottom: 1.2rem; }}
+.st-key-settings, .st-key-bb_settings {{ background: #f7f8fa; border: 1px solid {BORDER}; border-radius: 8px;
+  padding: 1.15rem 1.25rem 1.25rem !important; margin-bottom: 1.4rem; box-shadow: {SHADOW}; }}
+/* controls side by side line up along their bottom edge (a toggle next to a dropdown, etc.) */
+.st-key-settings [data-testid="stHorizontalBlock"], .st-key-bb_settings [data-testid="stHorizontalBlock"] {{
+  align-items: stretch; }}
+.st-key-settings [data-testid="stColumn"], .st-key-bb_settings [data-testid="stColumn"] {{
+  display: flex; flex-direction: column; justify-content: flex-end; }}
+/* a toggle beside a dropdown sits level with the dropdown's box, not its label */
+.st-key-settings [data-testid="stColumn"] [data-testid="stCheckbox"] {{ transform: translateY(10px); }}
+[data-testid="stMetric"] {{ background: #fff; border: 1px solid {BORDER}; border-top: 3px solid {INK}; border-radius: 6px; padding: .8rem 1rem .85rem;
+  box-shadow: {SHADOW}; height: 100%; }}
+[data-testid="stMetricLabel"] p {{ font-size: .78rem !important; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: #5b6878; }}
+[data-testid="stMetricValue"] {{ font-size: 2rem !important; line-height: 1.15; }}
+[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 6px; overflow: hidden; box-shadow: {SHADOW}; }}
+[data-testid="stAlert"] > div {{ border-radius: 6px; }}
+[data-testid="stVegaLiteChart"] {{ background: #fff; border: 1px solid {BORDER}; border-radius: 6px;
+  padding: .6rem .6rem .2rem; box-shadow: {SHADOW}; }}
+h2 {{ margin-top: .4rem !important; }}
+h3 {{ margin-top: .3rem !important; }}
 .st-key-settings label p, .st-key-bb_settings label p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
 .st-key-settings [data-testid="stPills"] button {{ min-height: 44px; padding: 0 1rem; }}
 .st-key-settings [data-testid="stPills"] button p {{ font-size: .98rem; font-weight: 600; }}
@@ -145,8 +177,19 @@ h2 {{ text-transform: uppercase; }}
 p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; }}
 
 /* ---------- banners ---------- */
-.banner {{ border-radius: 10px; padding: 1.6rem 1.8rem 1.5rem; color: #fff; margin: 0 0 1.4rem 0;
+/* page header: flat and editorial */
+.phead {{ padding: .2rem 0 1.15rem; margin: 0 0 1.3rem; border-bottom: 1px solid {BORDER}; }}
+.ptag {{ display: flex; align-items: center; gap: .5rem; margin: 0 0 .35rem; font-size: .76rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--c); }}
+.ptag i {{ width: 10px; height: 10px; background: var(--c); display: inline-block; }}
+.phead h1 {{ font-size: clamp(2.1rem, 5vw, 3.2rem) !important; line-height: 1 !important; margin: 0 0 .55rem !important;
+  padding: 0 !important; font-weight: 700; text-transform: uppercase; color: {INK}; letter-spacing: .005em; }}
+.phead .dek {{ font-size: 1.06rem; line-height: 1.55; color: #3b4857; max-width: 70ch; margin: 0; }}
+.pmeta {{ margin: .6rem 0 0; font-size: .86rem; font-weight: 600; color: #5b6878; }}
+.pmeta span {{ color: #b3bcc7; margin: 0 .2rem; }}
+.banner {{ border-radius: 6px; padding: 1.7rem 1.9rem 1.6rem; color: #fff; margin: 0 0 1.4rem 0;
   position: relative; overflow: hidden; }}
+@media (max-width: 640px) {{ .banner {{ padding: 1.25rem 1.2rem 1.2rem; }} .banner p {{ font-size: .95rem !important; }} }}
 .banner .eyebrow {{ color: rgba(255,255,255,.75); }}
 .banner h1 {{ color: #fff; font-size: clamp(1.9rem, 4.6vw, 2.9rem); line-height: 1.05; margin: .1rem 0 .5rem 0;
   padding: 0; font-weight: 700; text-transform: uppercase; }}
@@ -156,27 +199,46 @@ p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; 
   padding: .2rem .7rem; font-size: .8rem; font-weight: 600; }}
 
 /* ---------- sport cards on the homepage ---------- */
-[class*="st-key-card_"] {{ background: #fff; border: 1px solid {BORDER}; border-radius: 10px; overflow: hidden;
-  padding: 0 1.1rem 1.1rem !important; height: 100%; }}
-.card-text {{ min-height: 6.6em; }}
-.card-top {{ height: 92px; margin: 0 -1.1rem .9rem -1.1rem; display: flex; align-items: flex-end;
-  padding: 0 1.1rem .7rem; color: #fff; font-weight: 700; letter-spacing: .14em; font-size: .75rem;
-  text-transform: uppercase; }}
+[data-testid="stColumn"]:has([class*="st-key-card_"]) > [data-testid="stVerticalBlock"] {{ height: 100%; }}
+[data-testid="stLayoutWrapper"]:has(> [class*="st-key-card_"]) {{ flex: 1 1 auto !important; }}
+[class*="st-key-card_"] {{ background: #fff; border: 1px solid {BORDER}; border-radius: 6px; overflow: hidden;
+  padding: 0 1.15rem 1.15rem !important; height: 100%; display: flex; flex-direction: column; }}
+[class*="st-key-card_"] h3 {{ padding-bottom: .2rem !important; }}
+[class*="st-key-cardlink_"],
+[data-testid="stLayoutWrapper"]:has(> [class*="st-key-cardlink_"]) {{ margin-top: auto !important; }}  /* button at the bottom */
+.card-text {{ margin-bottom: .4rem; color: #3b4857; line-height: 1.5; }}
+.card-top {{ margin: 0 -1.15rem .2rem -1.15rem; padding: .85rem 1.15rem 0; border-top: 5px solid var(--c);
+  color: var(--c); font-weight: 700; letter-spacing: .12em; font-size: .72rem; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 [class*="st-key-cardlink_"] [data-testid="stPageLink"], [class*="st-key-cardlink_"] [data-testid="stPageLink"] > div {{ width: 100%; }}
 [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] {{ display: flex; align-items: center; width: 100%;
-  min-height: 48px; padding: 0 .9rem; border-radius: 6px; background: {NAVY}; }}
+  min-height: 46px; padding: 0 .9rem; border-radius: 6px; background: {NAVY}; }}
 [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] * {{ color: #fff !important; font-weight: 600; }}
 /* The whole card is clickable: the link's hit area is stretched over the entire card. */
 [class*="st-key-card_"] {{ position: relative; cursor: pointer; transition: box-shadow .15s, transform .15s; }}
 [class*="st-key-card_"] [class*="st-key-cardlink_"], [class*="st-key-card_"] [class*="st-key-cardlink_"] * {{ position: static !important; }}
 [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"]::after {{ content: ""; position: absolute; inset: 0; z-index: 2; }}
 @media (hover: hover) {{
-  [class*="st-key-card_"]:hover {{ box-shadow: 0 8px 22px rgba(12,26,43,.14); transform: translateY(-2px); border-color: #c4ccd6; }}
+  [class*="st-key-card_"]:hover {{ border-color: #9aa5b1; }}
   [class*="st-key-card_"]:hover [class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] {{ background: #1d3a5c; }}
 }}
 
+/* homepage grids: rows of tiles that always line up, and stack on phones */
+.grid.g3 {{ grid-template-columns: repeat(3, 1fr); }}
+@media (max-width: 900px) {{ .grid.g3 {{ grid-template-columns: repeat(2, 1fr); }} }}
+@media (max-width: 560px) {{ .grid.g3 {{ grid-template-columns: 1fr; }} }}
+.grid {{ display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items: stretch;
+  margin: .3rem 0 .4rem; }}
+.tile {{ background: #fff; border: 1px solid {BORDER}; border-radius: 6px; padding: 1rem 1.1rem; box-shadow: {SHADOW};
+  height: 100%; }}
+.tile .big {{ font-family: "Barlow Condensed", sans-serif; font-size: 2.1rem; font-weight: 700; line-height: 1; margin: .2rem 0; }}
+.tile p {{ margin: .25rem 0 0; color: #3b4857; font-size: .93rem; line-height: 1.5; }}
+.tile ul {{ margin: .4rem 0 0; padding: 0; list-style: none; }}
+.tile li {{ margin: .45rem 0 0; padding-left: .7rem; border-left: 3px solid var(--c, #c4ccd6); font-size: .93rem;
+  line-height: 1.45; color: #2b3a4a; }}
 /* step tiles */
 .step {{ border-left: 4px solid #f2b134; padding: .2rem 0 .2rem .9rem; }}
+.tile.step {{ padding: 1rem 1.1rem; border-left: 4px solid #f2b134; }}
 .step b {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.25rem; text-transform: uppercase; letter-spacing: .02em; }}
 .step p {{ margin: .3rem 0 0 0; color: #3b4857; }}
 </style>
@@ -195,7 +257,19 @@ div[style*="background:#fff"] { background: #151f2b !important; border-color: #2
 .st-key-menu_items a[data-testid="stPageLink-NavLink"]:active { background: #1c2836 !important; }
 @media (hover: hover) { .st-key-menu_items a[data-testid="stPageLink-NavLink"]:hover { background: #1c2836 !important; }
   [class*="st-key-card_"]:hover { border-color: #3c4b5d !important; box-shadow: 0 8px 22px rgba(0,0,0,.45) !important; } }
-.lv-card.is-live { border-color: #7a2f35 !important; }
+[data-testid="stMetric"], [data-testid="stVegaLiteChart"], .tile { background: #151f2b !important; border-color: #2a3644 !important; }
+[data-testid="stDataFrame"] { border-color: #2a3644 !important; }
+[data-testid="stMetricLabel"] p { color: #9fb0c3 !important; }
+.tile p, .card-text { color: #b8c4d2 !important; } .tile li { color: #dbe3ec !important; }
+.lv-card.is-live { box-shadow: inset 3px 0 0 #ff5a5a !important; }
+.phead { border-color: #2a3644 !important; }
+.hero, .hero .facts, .hero .facts div { border-color: #2a3644 !important; } .hero .facts small { color: #9fb0c3 !important; }
+.hero h1 { color: #f3f6f9 !important; }
+[class*="st-key-cardlink_"] a[data-testid="stPageLink-NavLink"] { background: #24384f !important; } .phead h1, .hero h1 { color: #f3f6f9 !important; }
+.phead .dek, .hero .dek { color: #b8c4d2 !important; } .pmeta { color: #9fb0c3 !important; }
+.st-key-settings, .st-key-bb_settings { background: #121b26 !important; }
+[data-testid="stExpander"] details { background: #151f2b !important; }
+[data-testid="stMetric"] { border-top-color: #9fb0c3 !important; }
 .lv-card td { color: #dbe3ec !important; border-top-color: #222e3c !important; }
 .lv-card th, .lv-team small, .lv-foot, .gd-team small, .bb-game { color: #8d9cad !important; }
 tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b { color: #f3f6f9 !important; }
@@ -259,24 +333,19 @@ def theme_button(pages: list[str], current: str) -> None:
 
 
 def banner(sport: str, title: str, text: str, chips: list[str] | None = None) -> None:
-    """Colored page banner with the sport's texture. Also tints primary buttons in that color."""
+    """Page header: a small colored sport tag, a bold headline, one plain sentence and a line of facts.
+    Also tints primary buttons in the sport's color."""
     s = SPORTS[sport]
-    chip_html = "".join(f'<span class="chip">{c}</span>' for c in chips or [])
-    st.markdown(f"""
-<style>
+    meta = " <span>·</span> ".join(chips or [])
+    st.markdown(f"""<style>
 .stButton button[kind="primary"] {{ background: {s['color']}; border-color: {s['color']}; }}
 .stButton button[kind="primary"]:active {{ background: {s['dark']}; border-color: {s['dark']}; }}
 @media (hover: hover) {{ .stButton button[kind="primary"]:hover {{ background: {s['dark']}; border-color: {s['dark']}; }} }}
 </style>
-<div class="banner" style="background: {s['texture']}, linear-gradient(120deg, {s['dark']} 0%, {s['color']} 100%);">
-  <p class="eyebrow">{s['label']}</p>
-  <h1>{title}</h1>
-  <p>{text}</p>
-  {f'<div class="chips">{chip_html}</div>' if chips else ''}
-</div>""", unsafe_allow_html=True)
+<div class="phead" style="--c:{s['color']}"><p class="ptag"><i></i>{s['label']}</p><h1>{title}</h1><p class="dek">{text}</p>{f'<p class="pmeta">{meta}</p>' if chips else ''}</div>""",
+                unsafe_allow_html=True)
 
 
 def card_top(sport: str, label: str) -> str:
-    s = SPORTS[sport]
-    return (f'<div class="card-top" style="background: {s["texture"]}, '
-            f'linear-gradient(120deg, {s["dark"]} 0%, {s["color"]} 100%);">{label}</div>')
+    """A thin bar in the sport's color across the top of a card, with a small label under it."""
+    return f'<div class="card-top" style="--c:{SPORTS[sport]["color"]}">{label}</div>'

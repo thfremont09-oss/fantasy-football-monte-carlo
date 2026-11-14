@@ -44,3 +44,26 @@ def test_bad_prices_are_left_out():
     g = game(100, -300, 0.30, 0.70)                     # DraftKings pays even money on a 30% shot
     bets, _ = bestbets.best_bets([g], "DraftKings", n=100_000)
     assert all(b.pick != "Away" for b in bets)
+
+
+def bet(book, american=None, ask=None):
+    g = game(150, -180, 0.5, 0.5)
+    return bestbets.Bet(g, "Away", book, "", 2.0, 0.5, 0.5, american=american, ask=ask)
+
+
+def test_draftkings_exact_payout():
+    t = bet("DraftKings", american=150).ticket(10)
+    assert (t.spent, t.profit, t.returned) == (10, 15.0, 25.0)
+    t = bet("DraftKings", american=-200).ticket(10)
+    assert (t.spent, t.profit, t.returned) == (10, 5.0, 15.0)
+    t = bet("DraftKings", american=-115).ticket(10)
+    assert t.profit == 8.69                                    # 10 x 100/115 = 8.6956..., rounded down
+
+
+def test_kalshi_exact_payout_with_fee():
+    t = bet("Kalshi", ask=0.24).ticket(10)
+    # 40 contracts: 40 x 0.24 = 9.60, fee = ceil(0.07 x 40 x 0.24 x 0.76 = 0.51072) = 0.52 -> 10.12, too much
+    # 39 contracts: 9.36 + ceil(0.4979...) = 0.50 -> 9.86
+    assert (t.contracts, t.fee, t.spent, t.returned) == (39, 0.50, 9.86, 39.0)
+    assert t.profit == pytest.approx(29.14)
+    assert bet("Kalshi", ask=0.24).ticket(0.20).contracts == 0

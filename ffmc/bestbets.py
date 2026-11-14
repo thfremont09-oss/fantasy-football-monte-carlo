@@ -15,6 +15,7 @@ goes stale once play begins.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -42,6 +43,43 @@ class Bet:
     confidence: float = 0.0   # share of simulations where the true chance beats break-even
     value: bool = False    # clearly better than its price (positive return, 55%+ confidence)
     sources: str = ""
+    american: int | None = None    # DraftKings line
+    ask: float | None = None       # Kalshi price per contract (dollars)
+
+    def ticket(self, stake: float) -> "Ticket":
+        return ticket(self, stake)
+
+
+@dataclass
+class Ticket:
+    """Exactly what a bet of a given amount costs and pays."""
+    spent: float           # money that leaves your account
+    returned: float        # paid back if it wins (your stake included)
+    profit: float          # returned - spent
+    contracts: int = 0     # Kalshi only
+    fee: float = 0.0       # Kalshi only
+
+
+def _cents_up(x: float) -> float:
+    return math.ceil(round(x * 100, 6)) / 100
+
+
+def ticket(b: "Bet", stake: float) -> Ticket:
+    """DraftKings: the stake times the odds. Kalshi: whole $1 contracts at the ask, plus Kalshi's fee
+    (0.07 x contracts x price x (1 - price), rounded up to the cent), as many as the stake covers."""
+    if b.book == "DraftKings" and b.american is not None:
+        win = stake * (b.american / 100 if b.american > 0 else 100 / -b.american)
+        win = math.floor(win * 100 + 1e-6) / 100
+        return Ticket(stake, round(stake + win, 2), win)
+    p = b.ask or 0.0
+    if p <= 0:
+        return Ticket(0.0, 0.0, 0.0)
+    n = int(stake // p)
+    while n > 0 and n * p + _cents_up(KALSHI_FEE * n * p * (1 - p)) > stake + 1e-9:
+        n -= 1
+    fee = _cents_up(KALSHI_FEE * n * p * (1 - p)) if n else 0.0
+    spent = round(n * p + fee, 2)
+    return Ticket(spent, float(n), round(n - spent, 2), n, fee)
 
 
 def _decimal(american: int) -> float:
@@ -82,6 +120,7 @@ def candidates(games: list[Game], book: str, our_sims: int = 100_000) -> list[Be
             vals = [v[i] for v in (kalshi, dk, ours) if v is not None]
             spread.append(max(MIN_SD, (max(vals) - min(vals)) / 2))
         for i, name in enumerate(names):
+            line = ask = None
             if book == "DraftKings":
                 line = g.sides[i].dk if i < 2 else g.draw_dk
                 if line is None:
@@ -94,7 +133,8 @@ def candidates(games: list[Game], book: str, our_sims: int = 100_000) -> list[Be
                 cost = ask + KALSHI_FEE * ask * (1 - ask)
                 payout, price = 1 / cost, f"{ask * 100:.0f}¢"
             src = f"{ref_name}" + (" + our Monte Carlo" if ours else "")
-            b = Bet(g, name, book, price, payout, 1 / payout, fair[i], sources=src)
+            b = Bet(g, name, book, price, payout, 1 / payout, fair[i], sources=src,
+                    american=line if book == "DraftKings" else None, ask=ask if book == "Kalshi" else None)
             b.ev = fair[i] * payout - 1
             b.confidence = spread[i]           # temporarily: the uncertainty, used by simulate()
             out.append(b)

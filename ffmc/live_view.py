@@ -199,6 +199,11 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
   font-size: 1.05rem; margin: .1rem 0 .1rem; }}
 .bb-price {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.5rem; font-weight: 700; }}
 .bb-game {{ font-size: .8rem; color: #6b7889; margin-bottom: .45rem; }}
+.bb-pay {{ display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; background: #f3f8f4;
+  border-radius: 8px; padding: .5rem .7rem; margin: .1rem 0 .4rem; }}
+.bb-pay small {{ display: block; font-size: .68rem; color: #6b7889; text-transform: uppercase; letter-spacing: .05em; }}
+.bb-pay b {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.45rem; line-height: 1.1; }}
+.bb-how {{ font-size: .78rem; color: #4a5a6c; margin-bottom: .45rem; line-height: 1.4; }}
 .bb-stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: .2rem .8rem; font-size: .84rem; }}
 .bb-pos {{ color: #1e8e3e; }} .bb-neg {{ color: #d93025; }}
 .bb-tag {{ display: inline-block; padding: .08rem .45rem; border-radius: 4px; font-weight: 700; font-size: .7rem;
@@ -376,21 +381,39 @@ def best(book: str, sort: str, min_win: float) -> tuple[list[bestbets.Bet], int,
     return bets, checked, fetched
 
 
+def money(x: float) -> str:
+    return f"${x:,.2f}"
+
+
 def bet_card(b: bestbets.Bet, stake: float) -> str:
     g = b.game
-    profit = b.ev * stake
+    t = b.ticket(stake)
+    avg = b.win * t.returned - t.spent           # average result over the simulations
     tag = ('<span class="bb-tag bb-value">Value</span>' if b.value
            else '<span class="bb-tag bb-fair">Fair price</span>')
     vs = " vs ".join(html.escape(s.name) for s in g.sides)
+    if b.book == "Kalshi":
+        if t.contracts == 0:
+            how = f"{money(stake)} isn't enough for one contract at {html.escape(b.price)}."
+        else:
+            how = (f"Buys <b>{t.contracts} contract{'s' if t.contracts != 1 else ''}</b> at {html.escape(b.price)} "
+                   f"= {money(t.contracts * b.ask)} + {money(t.fee)} Kalshi fee = <b>{money(t.spent)}</b>. "
+                   f"Each pays $1 if it wins.")
+    else:
+        how = f"At {html.escape(b.price)}, DraftKings pays {money(t.profit)} profit on {money(t.spent)}."
     return (f'<a class="lv-cardlink" href="live?game={quote(g.key)}" target="_self"><div class="lv-card bb-card">'
             f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
             f'<div class="bb-pick"><span><b>{html.escape(b.pick)}</b>{" to win" if b.pick != "Draw" else ""}</span>'
             f'<span class="bb-price">{html.escape(b.price)}</span></div>'
             f'<div class="bb-game">{vs}</div>'
+            f'<div class="bb-pay"><div><small>You bet</small><b>{money(t.spent)}</b></div>'
+            f'<div><small>If it wins, you get back</small><b class="bb-pos">{money(t.returned)}</b></div>'
+            f'<div><small>Profit</small><b class="bb-pos">+{money(t.profit)}</b></div></div>'
+            f'<div class="bb-how">{how} If it loses, you lose {money(t.spent)}.</div>'
             f'<div class="bb-stats"><span>Win chance <b>{b.win * 100:.0f}%</b></span>'
             f'<span>Break-even <b>{b.implied * 100:.0f}%</b></span>'
-            f'<span>On ${stake:,.0f}: <b class="{"bb-pos" if profit >= 0 else "bb-neg"}">'
-            f'{"+" if profit >= 0 else "−"}${abs(profit):,.2f}</b> avg</span>'
+            f'<span>Average result <b class="{"bb-pos" if avg >= 0 else "bb-neg"}">'
+            f'{"+" if avg >= 0 else "−"}{money(abs(avg))}</b></span>'
             f'<span>Confidence <b>{b.confidence * 100:.0f}%</b></span></div>'
             f'<div class="lv-foot">{tag} Fair chance from {html.escape(b.sources)}</div></div></a>')
 
@@ -422,7 +445,7 @@ def render_best_bets() -> None:
             st.caption("No clear value right now: these are the picks priced closest to fair or a touch better.")
         st.markdown(f'<div class="lv-grid">{"".join(bet_card(b, stake) for b in bets)}</div>',
                     unsafe_allow_html=True)
-    st.caption("**Value** = better than its price with at least 55% confidence. **Fair price** = within about 3% "
+    st.caption("**You bet / get back / profit** are exact for your stake at the current price (Kalshi: whole $1 contracts plus its fee). **Average result** is what the bet makes on average across the 1,000,000 simulations; any single bet either pays the full amount or loses the stake. **Value** = better than its price with at least 55% confidence. **Fair price** = within about 3% "
                "of fair. Win chance and the average result come from the simulations; any single bet still wins "
                "or loses. For information only, not betting advice. Must be 21+; if gambling stops being fun, "
                "call 1-800-GAMBLER.")

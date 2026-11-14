@@ -318,6 +318,10 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   confidence that it beats its price. **Value** = positive return with 55%+
   confidence; **Fair price** = within about 3% of fair. Sort by best value or
   most likely to win, with a minimum win chance.
+  Each card shows exactly what your stake buys: **you bet / if it wins you get back /
+  profit**. DraftKings: stake times the odds (rounded down to the cent). Kalshi:
+  as many whole $1 contracts as the stake covers at the ask, plus the fee
+  (0.07 x contracts x price x (1 - price), rounded up to the cent).
 * **Our own Monte Carlo** (`ffmc/winprob.py`) sits next to DraftKings and Kalshi
   on each game page as a comparison. It knows only each side's record, home
   advantage and, once the game starts, the score and clock, and plays the rest of

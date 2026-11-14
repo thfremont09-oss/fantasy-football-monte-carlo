@@ -85,6 +85,8 @@ class Game:
     path: str = ""                 # ESPN league path, e.g. "basketball/nba"
     event_id: str = ""             # ESPN event id (differs from the match id in tennis)
     tags: set[str] = field(default_factory=set)
+    period: int = 0                # quarter / half / period / inning in progress
+    clock: float = 0.0             # ESPN game clock in seconds (time left; time played in soccer)
 
     @property
     def key(self) -> str:
@@ -156,6 +158,10 @@ def _game(comp: dict, event: dict, sport: str, league: str) -> Game | None:
     g = Game(id=str(comp.get("id") or event.get("id")), sport=sport, league=league, start=start,
              state=stype.get("state", "pre"), detail=stype.get("shortDetail") or stype.get("detail") or "",
              sides=sides, venue=(comp.get("venue") or {}).get("fullName", ""))
+    try:
+        g.period, g.clock = int(status.get("period") or 0), float(status.get("clock") or 0)
+    except (TypeError, ValueError):
+        pass
     odds = next((o for o in comp.get("odds") or [] if "draftkings" in o.get("provider", {}).get("name", "").lower()), None)
     if odds:
         ml = odds.get("moneyline") or {}

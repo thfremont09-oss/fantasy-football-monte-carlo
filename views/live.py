@@ -15,7 +15,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from ffmc import live
+from ffmc import live, winprob
 from ffmc.ui import SPORTS, banner
 
 COLOR = SPORTS["live"]["color"]
@@ -48,6 +48,13 @@ def next_games(query: str) -> list[live.Game]:
 @st.cache_data(ttl=12, show_spinner=False)
 def history(series: str, ticker: str, hours: float, interval: int):
     return live.kalshi_history(series, ticker, hours, interval)
+
+
+@st.cache_data(ttl=600, show_spinner=False, max_entries=500)
+def own_odds(key: str, state: str, away_score: str, home_score: str, period: int, clock: float, detail: str,
+             away_record: str, home_record: str, _g: live.Game) -> winprob.OwnOdds | None:
+    """Our Monte Carlo for this game; reruns only when the score, clock or records change."""
+    return winprob.own_odds(_g)
 
 
 @st.cache_data(ttl=12, show_spinner=False)
@@ -190,7 +197,11 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .wl {{ display: inline-block; padding: .18rem .5rem; border-radius: 5px; font-size: .82rem; font-weight: 600;
   font-variant-numeric: tabular-nums; color: #fff; }}
 .wl-w {{ background: #1e8e3e; }} .wl-l {{ background: #d93025; }} .wl-d {{ background: #7b8794; }}
-@media (max-width: 640px) {{ .gd-odds {{ grid-template-columns: 1fr; }} .gd-score {{ font-size: 2.3rem; }} }}
+.gd-odds.gd-three {{ grid-template-columns: 1fr 1fr 1fr; }}
+.gd-ours {{ border-left: 3px solid {COLOR}; }}
+.gd-gap {{ font-weight: 500; color: #6b7889; font-size: .75rem; margin-left: .3rem; }}
+@media (max-width: 900px) {{ .gd-odds.gd-three {{ grid-template-columns: 1fr 1fr; }} }}
+@media (max-width: 640px) {{ .gd-odds, .gd-odds.gd-three {{ grid-template-columns: 1fr; }} .gd-score {{ font-size: 2.3rem; }} }}
 </style>
 """
 
@@ -282,6 +293,21 @@ def game_view(key: str, day: str | None = None) -> None:
         ks.append(row("Draw", pct(g.draw_kalshi)))
     if d.predictor:
         ks.append(row("ESPN matchup predictor", f"{pct(d.predictor[0])} / {pct(d.predictor[1])}"))
+    # Our own Monte Carlo, as a little comparison with the market.
+    mine = own_odds(g.key, g.state, away.score, home.score, g.period, g.clock, g.detail, away.record, home.record, _g=g)
+    ours = ""
+    if mine:
+        sides = [(away, mine.away), (home, mine.home)]
+        ours_rows = []
+        for s, p in sides:
+            gap = (f' <small class="gd-gap">{(p - s.kalshi) * 100:+.0f} vs Kalshi</small>'
+                   if s.kalshi is not None else "")
+            ours_rows.append(f'<div class="gd-row"><span>{html.escape(s.name)}</span><b>{pct(p)}{gap}</b></div>')
+        if mine.draw is not None:
+            ours_rows.append(row("Draw", pct(mine.draw)))
+        sims = f"{mine.n_sims // 1_000_000}M" if mine.n_sims >= 1_000_000 else f"{mine.n_sims:,}"
+        ours = (f'<div class="gd-box gd-ours"><p class="eyebrow">Our Monte Carlo · {sims} sims</p>'
+                f'{"".join(ours_rows)}</div>')
     team = lambda s: (f'<div class="gd-team">{logo_html(s)}<b>{html.escape(s.name)}</b>'
                       f'<small>{html.escape(s.record)}</small></div>')
     # One line with no indentation, so Markdown can't mistake any of it for a code block.
@@ -289,10 +315,14 @@ def game_view(key: str, day: str | None = None) -> None:
         f'<div class="gd-head"><div class="lv-top">{league_html(g)}<span class="lv-league">{where}</span>'
         f'{status_html(g)}</div>'
         f'<div class="gd-teams">{team(away)}<div class="gd-score">{score}</div>{team(home)}</div>'
-        f'<div class="gd-odds"><div class="gd-box"><p class="eyebrow">DraftKings'
+        f'<div class="gd-odds{" gd-three" if ours else ""}"><div class="gd-box"><p class="eyebrow">DraftKings'
         f'{" (pre-game)" if g.state == "in" else ""}</p>{"".join(dk)}</div>'
-        f'<div class="gd-box"><p class="eyebrow">Kalshi live win chance</p>{"".join(ks)}</div></div></div>',
+        f'<div class="gd-box"><p class="eyebrow">Kalshi live win chance</p>{"".join(ks)}</div>{ours}</div></div>',
         unsafe_allow_html=True)
+    if mine:
+        st.caption(f"Our Monte Carlo plays the rest of this game out {mine.n_sims:,} times using only {mine.basis}. "
+                   "It doesn't know injuries, lineups or form the way the market does, so big gaps usually mean "
+                   "the market knows something a record can't show.")
     st.caption(f"Updated {fetched.astimezone(ET):%I:%M:%S %p} ET · refreshes every {REFRESH} seconds")
 
     st.subheader("Live odds")

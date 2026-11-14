@@ -308,6 +308,14 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   stats from ESPN's game summary: team stats (season averages before kick-off),
   leaders, ESPN's matchup predictor, recent plays and each team's last five.
   Tennis and UFC have no ESPN summary, so they show score, odds and chart.
+* **Our own Monte Carlo** (`ffmc/winprob.py`) sits next to DraftKings and Kalshi
+  on each game page as a comparison. It knows only each side's record, home
+  advantage and, once the game starts, the score and clock, and plays the rest of
+  the game out 1,000,000 times: a shrinking random margin for football and
+  basketball (with a little late-game chaos), random goals for hockey and soccer
+  (draws allowed in soccer), random runs by innings left for baseball, overtime
+  as a tilted coin flip. Tennis and UFC aren't modelled. It shows the gap to
+  Kalshi in points.
 * **Search** is a type-ahead box over all ~1,600 teams and 26 leagues, fixes typos
   (`bayren` → Bayern Munich, via `difflib`) and also shows each matching team's
   **next game however far away**, one per competition (ESPN team schedules).

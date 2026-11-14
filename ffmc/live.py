@@ -63,6 +63,7 @@ class Side:
     dk: int | None = None          # DraftKings moneyline (American odds)
     kalshi: float | None = None    # Kalshi win chance (0-1)
     kalshi_ticker: str | None = None
+    kalshi_ask: float | None = None  # price to buy YES right now (0-1)
 
 
 @dataclass
@@ -82,6 +83,7 @@ class Game:
     kalshi_updated: bool = False
     kalshi_series: str | None = None
     draw_ticker: str | None = None
+    draw_kalshi_ask: float | None = None
     path: str = ""                 # ESPN league path, e.g. "basketball/nba"
     event_id: str = ""             # ESPN event id (differs from the match id in tennis)
     tags: set[str] = field(default_factory=set)
@@ -321,6 +323,11 @@ def _same(a: str, b: str) -> bool:
     return len(last_a) > 3 and last_a == last_b
 
 
+def _ask(m: dict) -> float | None:
+    ask = float(m.get("yes_ask_dollars") or 0)
+    return ask if 0 < ask < 1 else None
+
+
 def attach_kalshi(games: list[Game], events: dict[str, list[dict]], series: str = "") -> None:
     for markets in events.values():
         names = [(m.get("yes_sub_title") or m.get("title") or "", m) for m in markets]
@@ -342,10 +349,12 @@ def attach_kalshi(games: list[Game], events: dict[str, list[dict]], series: str 
                 for i, m in pairs.items():
                     g.sides[i].kalshi = _chance(m)
                     g.sides[i].kalshi_ticker = m["ticker"]
+                    g.sides[i].kalshi_ask = _ask(m)
                 tie = next((m for n, m in names if _norm(n) in ("tie", "draw")), None)
                 if tie:
                     g.draw_kalshi = _chance(tie)
                     g.draw_ticker = tie["ticker"]
+                    g.draw_kalshi_ask = _ask(tie)
                 g.kalshi_updated = True
                 g.kalshi_series = series
                 break

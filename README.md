@@ -308,6 +308,16 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   stats from ESPN's game summary: team stats (season averages before kick-off),
   leaders, ESPN's matchup predictor, recent plays and each team's last five.
   Tennis and UFC have no ESPN summary, so they show score, odds and chart.
+* **Best bets now** tab (`ffmc/bestbets.py`): moneyline bets on games that
+  haven't started, on Kalshi or DraftKings (switch between them). A DraftKings
+  bet's fair chance comes from Kalshi's price; a Kalshi bet's from DraftKings'
+  line with the cut removed (and Kalshi's 0.07 x p x (1-p) fee is included);
+  10% of our own Monte Carlo is blended in. Each pick is simulated 1,000,000
+  times with the fair chance itself uncertain (more so when the sources
+  disagree), giving its win chance, average profit on your stake, and the
+  confidence that it beats its price. **Value** = positive return with 55%+
+  confidence; **Fair price** = within about 3% of fair. Sort by best value or
+  most likely to win, with a minimum win chance.
 * **Our own Monte Carlo** (`ffmc/winprob.py`) sits next to DraftKings and Kalshi
   on each game page as a comparison. It knows only each side's record, home
   advantage and, once the game starts, the score and clock, and plays the rest of

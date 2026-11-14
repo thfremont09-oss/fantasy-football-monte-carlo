@@ -15,7 +15,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from ffmc import live, winprob
+from ffmc import bestbets, live, winprob
 from ffmc.ui import SPORTS, banner
 
 COLOR = SPORTS["live"]["color"]
@@ -192,6 +192,15 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .gd-box {{ background: #f5f6f8; border-radius: 8px; padding: .6rem .8rem; font-size: .9rem; }}
 .gd-box p {{ margin: 0; }} .gd-box .eyebrow {{ margin-bottom: .3rem; }}
 .gd-row {{ display: flex; justify-content: space-between; gap: .5rem; padding: .12rem 0; }}
+.bb-card .bb-pick {{ display: flex; justify-content: space-between; align-items: baseline; gap: .6rem;
+  font-size: 1.05rem; margin: .1rem 0 .1rem; }}
+.bb-price {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.5rem; font-weight: 700; }}
+.bb-game {{ font-size: .8rem; color: #6b7889; margin-bottom: .45rem; }}
+.bb-stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: .2rem .8rem; font-size: .84rem; }}
+.bb-pos {{ color: #1e8e3e; }} .bb-neg {{ color: #d93025; }}
+.bb-tag {{ display: inline-block; padding: .08rem .45rem; border-radius: 4px; font-weight: 700; font-size: .7rem;
+  margin-right: .35rem; color: #fff; }}
+.bb-value {{ background: #1e8e3e; }} .bb-fair {{ background: #7b8794; }}
 .ffmc-wl-row {{ display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0 0 .6rem; }}
 .ffmc-wl-row b {{ min-width: 3rem; }}
 .wl {{ display: inline-block; padding: .18rem .5rem; border-radius: 5px; font-size: .82rem; font-weight: 600;
@@ -384,7 +393,7 @@ def search_options() -> tuple[list[str], list]:
 
 
 league_names = [l[1] for l in live.LEAGUES]
-today_tab, sched_tab = st.tabs(["Live & today", "Schedule · next 7 days"])
+today_tab, sched_tab, bets_tab = st.tabs(["Live & today", "Schedule · next 7 days", "Best bets now"])
 
 with today_tab, st.container(key="settings"):
     names, team_idx = search_options()
@@ -464,6 +473,63 @@ with sched_tab:
             part = [g for g in games if g.start.astimezone(ET).date() == d]
             st.markdown(f'<div class="lv-day">{label(d)} · {len(part)} game{"s" if len(part) != 1 else ""}</div>'
                         + grid(part, sched=True), unsafe_allow_html=True)
+
+@st.cache_data(ttl=60, show_spinner=False)
+def best(book: str, sort: str, min_win: float) -> tuple[list[bestbets.Bet], int, dt.datetime]:
+    games, fetched = board()
+    bets, checked = bestbets.best_bets(games, book, sort, min_win=min_win)
+    return bets, checked, fetched
+
+
+def bet_card(b: bestbets.Bet, stake: float) -> str:
+    g = b.game
+    profit = b.ev * stake
+    tag = ('<span class="bb-tag bb-value">Value</span>' if b.value
+           else '<span class="bb-tag bb-fair">Fair price</span>')
+    vs = " vs ".join(html.escape(s.name) for s in g.sides)
+    return (f'<a class="lv-cardlink" href="?game={quote(g.key)}" target="_self"><div class="lv-card bb-card">'
+            f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
+            f'<div class="bb-pick"><span><b>{html.escape(b.pick)}</b>{" to win" if b.pick != "Draw" else ""}</span>'
+            f'<span class="bb-price">{html.escape(b.price)}</span></div>'
+            f'<div class="bb-game">{vs}</div>'
+            f'<div class="bb-stats"><span>Win chance <b>{b.win * 100:.0f}%</b></span>'
+            f'<span>Break-even <b>{b.implied * 100:.0f}%</b></span>'
+            f'<span>On ${stake:,.0f}: <b class="{"bb-pos" if profit >= 0 else "bb-neg"}">'
+            f'{"+" if profit >= 0 else "−"}${abs(profit):,.2f}</b> avg</span>'
+            f'<span>Confidence <b>{b.confidence * 100:.0f}%</b></span></div>'
+            f'<div class="lv-foot">{tag} Fair chance from {html.escape(b.sources)}</div></div></a>')
+
+
+with bets_tab:
+    st.markdown("Moneyline bets on games that haven't started, where one app's price looks generous compared with "
+                "the other app (plus a little of our own Monte Carlo). Each pick is played out 1,000,000 times, "
+                "allowing for the fair chance itself being uncertain.")
+    with st.container(key="bb_settings"):
+        b1, b2 = st.columns(2, gap="large")
+        book = b1.pills("Bet with", ["Kalshi", "DraftKings"], default="Kalshi", required=True, key="bb_book")
+        sort_label = b2.pills("Show", ["Best value", "Most likely to win"], default="Best value", required=True,
+                              key="bb_sort")
+        b3, b4 = st.columns(2, gap="large")
+        min_win = b3.slider("Minimum win chance", 0, 80, 25, step=5, format="%d%%", key="bb_min",
+                            help="Leave out long shots below this chance of winning.")
+        stake = b4.number_input("Stake ($)", 1.0, 10_000.0, 10.0, step=5.0, key="bb_stake")
+    with st.spinner("Simulating every bet 1,000,000 times..."):
+        bets, checked, when = best(book, "value" if sort_label == "Best value" else "likely", min_win / 100)
+    n_value = sum(b.value for b in bets)
+    st.caption(f"{checked} {book} bets checked at {when.astimezone(ET):%I:%M %p} ET · {n_value} clear value "
+               f"bet{'s' if n_value != 1 else ''} · refreshes every minute")
+    if not bets:
+        st.info("Nothing worth showing right now with these settings. Try a lower minimum win chance or the "
+                "other app.")
+    else:
+        if not n_value:
+            st.caption("No clear value right now: these are the picks priced closest to fair or a touch better.")
+        st.markdown(f'<div class="lv-grid">{"".join(bet_card(b, stake) for b in bets)}</div>',
+                    unsafe_allow_html=True)
+    st.caption("**Value** = better than its price with at least 55% confidence. **Fair price** = within about 3% "
+               "of fair. Win chance and the average result come from the simulations; any single bet still wins "
+               "or loses. For information only, not betting advice. Must be 21+; if gambling stops being fun, "
+               "call 1-800-GAMBLER.")
 
 st.divider()
 st.caption("Scores, stats and DraftKings odds via ESPN; live prices and charts from Kalshi's public market data. For "

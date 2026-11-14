@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-14a"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-14b"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 INK = "#14202e"
@@ -130,9 +130,9 @@ a[data-testid="stPageLink-NavLink"] {{ min-height: 44px; display: flex; align-it
 [data-testid="stSegmentedControl"] button, .stPills button {{ min-height: 44px; }}
 
 /* ---------- settings panel ---------- */
-.st-key-settings {{ background: #fff; border: 1px solid {BORDER}; border-radius: 10px; padding: 1rem 1.1rem 1.1rem !important;
+.st-key-settings, .st-key-bb_settings {{ background: #fff; border: 1px solid {BORDER}; border-radius: 10px; padding: 1rem 1.1rem 1.1rem !important;
   margin-bottom: 1.2rem; }}
-.st-key-settings label p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
+.st-key-settings label p, .st-key-bb_settings label p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }}
 .st-key-settings [data-testid="stPills"] button {{ min-height: 44px; padding: 0 1rem; }}
 .st-key-settings [data-testid="stPills"] button p {{ font-size: .98rem; font-weight: 600; }}
 
@@ -186,7 +186,7 @@ p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; 
 # Dark mode: Streamlit recolors its own widgets from .streamlit/config.toml ([theme.dark]);
 # these rules recolor the site's own cards, panels and text to match.
 DARK_RULES = """
-.st-key-settings, [class*="st-key-card_"], .lv-card, .gd-head { background: #151f2b !important; border-color: #2a3644 !important; }
+.st-key-settings, .st-key-bb_settings, [class*="st-key-card_"], .lv-card, .gd-head { background: #151f2b !important; border-color: #2a3644 !important; }
 div[style*="background:#fff"] { background: #151f2b !important; border-color: #2a3644 !important; }
 [style*="color:#3b4857"], [style*="color:#4a5a6c"], [style*="color:#6b7889"], p.lead, .step p { color: #b8c4d2 !important; }
 .eyebrow, .lv-league, .lv-final { color: #9fb0c3 !important; }
@@ -197,7 +197,7 @@ div[style*="background:#fff"] { background: #151f2b !important; border-color: #2
   [class*="st-key-card_"]:hover { border-color: #3c4b5d !important; box-shadow: 0 8px 22px rgba(0,0,0,.45) !important; } }
 .lv-card.is-live { border-color: #7a2f35 !important; }
 .lv-card td { color: #dbe3ec !important; border-top-color: #222e3c !important; }
-.lv-card th, .lv-team small, .lv-foot, .gd-team small { color: #8d9cad !important; }
+.lv-card th, .lv-team small, .lv-foot, .gd-team small, .bb-game { color: #8d9cad !important; }
 tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b { color: #f3f6f9 !important; }
 .lv-pre { color: #a9c7ee !important; } .lv-live { color: #ff6b6b !important; }
 .lv-bar { background: #263241 !important; }

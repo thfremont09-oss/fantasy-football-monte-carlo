@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import random
+import time
 import difflib
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -304,12 +306,34 @@ def game_details(path: str, event_id: str, cache_dir=".ffmc_cache") -> Details:
 
 
 # ---------------------------------------------------------------- Kalshi side
+# Last good Kalshi answer per series, used if a refresh fails (e.g. Kalshi asks us to slow down).
+_KALSHI_LAST: dict[str, tuple[float, dict]] = {}
+KALSHI_STALE_OK = 600            # seconds an old answer may stand in
+KALSHI_STATUS = {"failed": 0, "stale": 0}
+
+
 def kalshi_prices(http: CachedJSON, series: str) -> dict[str, list[dict]]:
     """Open Kalshi winner markets for a series, grouped by event."""
-    try:
-        data = http.get(KALSHI, [("series_ticker", series), ("status", "open"), ("limit", "1000")], ttl=12)
-    except APIError:
-        return {}
+    params = [("series_ticker", series), ("status", "open"), ("limit", "1000")]
+    data = None
+    for attempt in range(3):
+        try:
+            data = http.get(KALSHI, params, ttl=12)
+            _KALSHI_LAST[series] = (time.time(), data)
+            break
+        except APIError as exc:
+            if "429" in str(exc) and attempt < 2:      # rate limited: wait a moment, then try again
+                time.sleep(0.6 * (attempt + 1) + random.random() * 0.4)
+                continue
+            break
+    if data is None:
+        last = _KALSHI_LAST.get(series)
+        if last and time.time() - last[0] < KALSHI_STALE_OK:
+            data = last[1]
+            KALSHI_STATUS["stale"] += 1
+        else:
+            KALSHI_STATUS["failed"] += 1
+            return {}
     events: dict[str, list[dict]] = {}
     for m in data.get("markets", []):
         events.setdefault(m["event_ticker"], []).append(m)
@@ -401,7 +425,7 @@ def load_board(cache_dir=".ffmc_cache", leagues=LEAGUES, now: dt.datetime | None
     days = [(now + dt.timedelta(d)).date() for d in (-1, 0, 1)]
     with ThreadPoolExecutor(12) as pool:
         espn = list(pool.map(lambda l: espn_games(http, l[2], l[0], l[1], days), leagues))
-    with ThreadPoolExecutor(6) as pool:
+    with ThreadPoolExecutor(3) as pool:      # gentle on Kalshi's rate limit
         kal = list(pool.map(lambda l: kalshi_prices(http, l[3]), leagues))
     games: list[Game] = []
     for lg, gs, events in zip(leagues, espn, kal):

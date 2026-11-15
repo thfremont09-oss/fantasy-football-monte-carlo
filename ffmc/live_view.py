@@ -434,7 +434,25 @@ def render_best_bets() -> None:
     n_value = sum(b.value for b in bets)
     st.caption(f"{checked} {book} bets checked at {when.astimezone(ET):%I:%M %p} ET · {n_value} clear value "
                f"bet{'s' if n_value != 1 else ''} · refreshes every minute")
-    if not bets:
+    if not checked:
+        # Say why nothing could be checked, instead of a bare zero.
+        games, _ = board()
+        upcoming = [g for g in games if g.state == "pre"]
+        with_dk = sum(g.dk_fair() is not None for g in upcoming)
+        with_k = sum(any(s.kalshi is not None for s in g.sides) for g in upcoming)
+        if not upcoming:
+            why = "There are no upcoming games on the board right now (only live or finished ones)."
+        elif not with_k:
+            why = ("Kalshi's prices didn't come through just now (it may be asking us to slow down). "
+                   "They usually return within a minute; this page refreshes itself.")
+        elif not with_dk:
+            why = "DraftKings hasn't posted lines for the upcoming games yet."
+        else:
+            why = "No upcoming game has prices on both apps right now."
+        st.warning(f"No bets to check yet. {why} ({len(upcoming)} upcoming games · {with_dk} with DraftKings "
+                   f"lines · {with_k} with Kalshi prices)")
+        best.clear()                    # don't keep an empty answer for a whole minute
+    elif not bets:
         st.info("Nothing worth showing right now with these settings. Try a lower minimum win chance or the "
                 "other app.")
     else:

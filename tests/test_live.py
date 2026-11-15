@@ -178,3 +178,27 @@ def test_one_broken_game_does_not_break_the_board(monkeypatch):
             return {"events": [broken, fine]}
     games = live.espn_games(Fake(), "soccer/mex.1", "Soccer", "Liga MX", [dt.date(2026, 11, 15)])
     assert [g.id for g in games] == ["1"]
+
+
+def test_kalshi_rate_limit_retries_then_falls_back(monkeypatch):
+    monkeypatch.setattr(live.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+    good = {"markets": [{"event_ticker": "E1", "ticker": "A"}]}
+
+    class Http:
+        def __init__(self, fail_times):
+            self.fail_times = fail_times
+
+        def get(self, *a, **k):
+            calls["n"] += 1
+            if calls["n"] <= self.fail_times:
+                raise live.APIError("429 Too Many Requests")
+            return good
+
+    live._KALSHI_LAST.clear()
+    assert live.kalshi_prices(Http(2), "KXTEST") == {"E1": good["markets"]}     # two 429s, then success
+    calls["n"] = 0
+    assert live.kalshi_prices(Http(99), "KXTEST") == {"E1": good["markets"]}    # all fail: last good answer
+    live._KALSHI_LAST.clear()
+    calls["n"] = 0
+    assert live.kalshi_prices(Http(99), "KXTEST") == {}                         # nothing to fall back on

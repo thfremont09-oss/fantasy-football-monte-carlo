@@ -158,3 +158,23 @@ def test_schedule_keeps_only_that_eastern_day(monkeypatch):
     games = live.load_schedule("NFL", dt.date(2026, 11, 15))
     assert [g.id for g in games] == ["1", "2"]
     assert live.load_schedule("NFL", dt.date(2026, 11, 16)) == []
+
+
+def test_empty_odds_entries_from_espn_are_skipped():
+    # ESPN sometimes sends null entries in a game's odds list (seen on Liga MX / Brasileirao).
+    e = event()
+    good = e["competitions"][0]["odds"][0]
+    e["competitions"][0]["odds"] = [None, {"provider": None}, good]
+    g = live._game(e["competitions"][0], e, "Soccer", "Liga MX")
+    assert g.sides[1].dk == -155
+
+
+def test_one_broken_game_does_not_break_the_board(monkeypatch):
+    broken = {"id": "2", "date": "2026-11-15T18:00Z", "competitions": [{"competitors": [None, None]}]}
+    fine = event()
+
+    class Fake:
+        def get(self, *a, **k):
+            return {"events": [broken, fine]}
+    games = live.espn_games(Fake(), "soccer/mex.1", "Soccer", "Liga MX", [dt.date(2026, 11, 15)])
+    assert [g.id for g in games] == ["1"]

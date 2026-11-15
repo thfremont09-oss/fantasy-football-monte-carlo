@@ -147,6 +147,14 @@ def _side(c: dict) -> Side:
                 logo=logo, score=str(score or ""), winner=bool(c.get("winner")), record=rec)
 
 
+def draftkings(comp: dict) -> dict | None:
+    """DraftKings' odds block for a game, if ESPN has one. ESPN sometimes sends empty entries."""
+    for o in comp.get("odds") or []:
+        if isinstance(o, dict) and "draftkings" in str((o.get("provider") or {}).get("name", "")).lower():
+            return o
+    return None
+
+
 def _game(comp: dict, event: dict, sport: str, league: str) -> Game | None:
     cs = comp.get("competitors") or []
     if len(cs) < 2:
@@ -164,7 +172,7 @@ def _game(comp: dict, event: dict, sport: str, league: str) -> Game | None:
         g.period, g.clock = int(status.get("period") or 0), float(status.get("clock") or 0)
     except (TypeError, ValueError):
         pass
-    odds = next((o for o in comp.get("odds") or [] if "draftkings" in o.get("provider", {}).get("name", "").lower()), None)
+    odds = draftkings(comp)
     if odds:
         ml = odds.get("moneyline") or {}
         by_side = {"away": 0, "home": 1}
@@ -198,7 +206,10 @@ def espn_games(http: CachedJSON, path: str, sport: str, league: str, days: list[
                     comps += grp.get("competitions", [])
             comps += e.get("competitions") or []
             for comp in comps:
-                g = _game(comp, e, sport, league)
+                try:
+                    g = _game(comp, e, sport, league)
+                except (AttributeError, KeyError, TypeError, ValueError, IndexError):
+                    continue          # one oddly shaped game from ESPN never takes down the board
                 if g:
                     g.path, g.event_id = path, str(e.get("id", ""))
                     games.append(g)

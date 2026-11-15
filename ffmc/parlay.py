@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .live import draftkings
 from .http import APIError, CachedJSON
 
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/{path}/scoreboard"
@@ -244,53 +245,63 @@ def espn_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = None)
     legs, seen = [], set()
     for (sport, league, _, _), events in results:
         for e in events:
-            if e["id"] in seen:
-                continue
-            comp = e["competitions"][0]
-            start = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
-            state = comp.get("status", {}).get("type", {}).get("state", "pre")
-            if state != "pre" or start < now or start > now + dt.timedelta(days):
-                continue
-            odds = next((o for o in comp.get("odds", []) if "draftkings" in o.get("provider", {}).get("name", "").lower()), None)
-            sides = {c.get("homeAway"): c for c in comp.get("competitors", [])}
-            if not odds or "home" not in sides or "away" not in sides:
-                continue
-            seen.add(e["id"])
-            home, away = _team(sides["home"]), _team(sides["away"])
-            game = f"espn:{e['id']}"
-            base = dict(game=game, sport=sport, league=league, matchup=f"{away} @ {home}", start=start)
+            try:
+                legs += _espn_event_legs(e, sport, league, now, days, seen)
+            except (AttributeError, KeyError, TypeError, ValueError, IndexError):
+                continue              # skip one oddly shaped game rather than fail the whole scan
+    return legs
 
-            ml = odds.get("moneyline") or {}
-            ml_odds = [_odds((ml.get(s) or {}).get("close", {}).get("odds")) for s in ("home", "away")]
-            names = [home, away]
-            draw = _odds((ml.get("draw") or {}).get("close", {}).get("odds"))
-            if draw is not None:
-                ml_odds.append(draw)
-                names.append("Draw")
-            probs = _devig(ml_odds)
-            if probs:
-                for side, name, o, p in zip(("home", "away", "draw"), names, ml_odds, probs):
-                    legs.append(Leg(key=f"{game}:ml:{side}", market="Moneyline",
-                                    pick=f"{name} win" if name != "Draw" else "Draw", p=p, kappa=150,
-                                    dk_odds=o, sources=["DraftKings"], **base))
 
-            ps = odds.get("pointSpread") or {}
-            sp = [((ps.get(s) or {}).get("close") or {}) for s in ("home", "away")]
-            probs = _devig([_odds(x.get("odds")) for x in sp])
-            if probs and all(x.get("line") for x in sp):
-                for side, name, x, p in zip(("home", "away"), (home, away), sp, probs):
-                    legs.append(Leg(key=f"{game}:spread:{side}", market="Spread", pick=f"{name} {x['line']}",
-                                    p=p, kappa=150, dk_odds=_odds(x["odds"]), sources=["DraftKings"], **base))
+def _espn_event_legs(e: dict, sport: str, league: str, now: dt.datetime, days: int, seen: set) -> list:
+    """The DraftKings legs (moneyline, spread, total) for one ESPN game."""
+    legs: list = []
+    if e["id"] in seen:
+        return legs
+    comp = e["competitions"][0]
+    start = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+    state = comp.get("status", {}).get("type", {}).get("state", "pre")
+    if state != "pre" or start < now or start > now + dt.timedelta(days):
+        return legs
+    odds = draftkings(comp)
+    sides = {c.get("homeAway"): c for c in comp.get("competitors", [])}
+    if not odds or "home" not in sides or "away" not in sides:
+        return legs
+    seen.add(e["id"])
+    home, away = _team(sides["home"]), _team(sides["away"])
+    game = f"espn:{e['id']}"
+    base = dict(game=game, sport=sport, league=league, matchup=f"{away} @ {home}", start=start)
 
-            tot = odds.get("total") or {}
-            tt = [((tot.get(s) or {}).get("close") or {}) for s in ("over", "under")]
-            probs = _devig([_odds(x.get("odds")) for x in tt])
-            if probs and all(x.get("line") for x in tt):
-                for side, x, p in zip(("Over", "Under"), tt, probs):
-                    line = str(x["line"]).lstrip("ou")
-                    legs.append(Leg(key=f"{game}:total:{side.lower()}", market="Total",
-                                    pick=f"{side} {line} ({away} @ {home})", p=p, kappa=150,
-                                    dk_odds=_odds(x["odds"]), sources=["DraftKings"], **base))
+    ml = odds.get("moneyline") or {}
+    ml_odds = [_odds(((ml.get(s) or {}).get("close") or {}).get("odds")) for s in ("home", "away")]
+    names = [home, away]
+    draw = _odds(((ml.get("draw") or {}).get("close") or {}).get("odds"))
+    if draw is not None:
+        ml_odds.append(draw)
+        names.append("Draw")
+    probs = _devig(ml_odds)
+    if probs:
+        for side, name, o, p in zip(("home", "away", "draw"), names, ml_odds, probs):
+            legs.append(Leg(key=f"{game}:ml:{side}", market="Moneyline",
+                            pick=f"{name} win" if name != "Draw" else "Draw", p=p, kappa=150,
+                            dk_odds=o, sources=["DraftKings"], **base))
+
+    ps = odds.get("pointSpread") or {}
+    sp = [((ps.get(s) or {}).get("close") or {}) for s in ("home", "away")]
+    probs = _devig([_odds(x.get("odds")) for x in sp])
+    if probs and all(x.get("line") for x in sp):
+        for side, name, x, p in zip(("home", "away"), (home, away), sp, probs):
+            legs.append(Leg(key=f"{game}:spread:{side}", market="Spread", pick=f"{name} {x['line']}",
+                            p=p, kappa=150, dk_odds=_odds(x["odds"]), sources=["DraftKings"], **base))
+
+    tot = odds.get("total") or {}
+    tt = [((tot.get(s) or {}).get("close") or {}) for s in ("over", "under")]
+    probs = _devig([_odds(x.get("odds")) for x in tt])
+    if probs and all(x.get("line") for x in tt):
+        for side, x, p in zip(("Over", "Under"), tt, probs):
+            line = str(x["line"]).lstrip("ou")
+            legs.append(Leg(key=f"{game}:total:{side.lower()}", market="Total",
+                            pick=f"{side} {line} ({away} @ {home})", p=p, kappa=150,
+                            dk_odds=_odds(x["odds"]), sources=["DraftKings"], **base))
     return legs
 
 

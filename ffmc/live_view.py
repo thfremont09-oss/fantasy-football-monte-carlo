@@ -66,6 +66,21 @@ def own_odds(key: str, state: str, away_score: str, home_score: str, period: int
     return winprob.own_odds(_g)
 
 
+CARD_SIMS = 1_000_000   # per game on the board, same as the game page
+
+
+@st.cache_data(ttl=600, show_spinner=False, max_entries=2000)
+def card_odds(key: str, state: str, away_score: str, home_score: str, period: int, clock: float, detail: str,
+              away_record: str, home_record: str, _g: live.Game) -> winprob.OwnOdds | None:
+    """Our Monte Carlo for a board card; reruns only when the score, clock or records change."""
+    return winprob.own_odds(_g, CARD_SIMS)
+
+
+def ours_for(g: live.Game) -> winprob.OwnOdds | None:
+    a, h = g.sides[0], g.sides[1] if len(g.sides) > 1 else g.sides[0]
+    return card_odds(g.key, g.state, a.score, h.score, g.period, g.clock, g.detail, a.record, h.record, _g=g)
+
+
 @st.cache_data(ttl=12, show_spinner=False)
 def details(path: str, event_id: str) -> live.Details:
     return live.game_details(path, event_id)
@@ -122,18 +137,22 @@ def result_chip(result: str) -> str:
 def card(g: live.Game, sched: bool = False) -> str:
     rows = []
     best = max(range(len(g.sides)), key=lambda i: g.sides[i].kalshi or 0) if g.kalshi_updated else None
+    mine = ours_for(g) if g.state != "post" else None          # our own Monte Carlo odds
+    ours = [mine.away, mine.home] if mine else [None, None]
     for i, s in enumerate(g.sides):
         win = " lv-win" if s.winner else ""
         bar = (f'<span class="lv-bar"><b style="width:{(s.kalshi or 0) * 100:.0f}%;background:{SIDE_COLORS[i % 2]}"></b></span>'
                if s.kalshi is not None else "")
         rec = f'<small>{html.escape(s.record)}</small>' if s.record else ""
         odds = ("" if g.state == "post" else f'<td class="lv-dk">{american(s.dk)}</td>'
-                f'<td class="lv-k{" lv-fav" if i == best else ""}">{pct(s.kalshi)}{bar}</td>')
+                f'<td class="lv-k{" lv-fav" if i == best else ""}">{pct(s.kalshi)}{bar}</td>'
+                f'<td class="lv-ours">{pct(ours[i] if i < 2 else None)}</td>')
         rows.append(f'<tr class="{win.strip()}"><td class="lv-team">{logo_html(s)}<span>{html.escape(s.name)}{rec}</span></td>'
                     f'<td class="lv-score">{html.escape(s.score) if g.state != "pre" else ""}</td>{odds}</tr>')
     if g.state != "post" and (g.draw_dk is not None or g.draw_kalshi is not None):
         rows.append(f'<tr><td class="lv-team"><span class="lv-logo"></span><span>Draw</span></td><td></td>'
-                    f'<td class="lv-dk">{american(g.draw_dk)}</td><td class="lv-k">{pct(g.draw_kalshi)}</td></tr>')
+                    f'<td class="lv-dk">{american(g.draw_dk)}</td><td class="lv-k">{pct(g.draw_kalshi)}</td>'
+                    f'<td class="lv-ours">{pct(mine.draw if mine else None)}</td></tr>')
     foot = " · ".join(x for x in (f"Spread {g.spread}" if g.spread else "", g.total) if x)
     if g.state == "in" and any(s.dk for s in g.sides):
         foot = (foot + " · " if foot else "") + "DraftKings line is pre-game"
@@ -143,7 +162,8 @@ def card(g: live.Game, sched: bool = False) -> str:
             f'<div class="lv-card{" is-live" if g.state == "in" else ""}"><div class="lv-top">'
             f'{league_html(g)}{status_html(g)}</div>'
             f'<table><thead><tr><th></th><th>{"Score" if g.state != "pre" else ""}</th>'
-            + ("" if g.state == "post" else "<th>DraftKings</th><th>Kalshi</th>") + '</tr></thead>'
+            + ("" if g.state == "post" else '<th>DraftKings</th><th>Kalshi</th><th class="lv-ours-h">Ours</th>')
+            + '</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table>'
             + (f'<div class="lv-foot">{html.escape(foot)}</div>' if foot else "")
             + '<div class="lv-more">Stats &amp; odds chart →</div></div></a>')
@@ -179,10 +199,13 @@ a.lv-cardlink, a.lv-cardlink:hover {{ text-decoration: none !important; color: i
 .lv-card td.lv-team {{ padding-left: 0 !important; text-align: left; display: flex; align-items: center; gap: .45rem; white-space: normal; }}
 .lv-logo {{ width: 22px; height: 22px; flex: 0 0 22px; background: center / contain no-repeat; display: inline-block; }}
 .lv-team small {{ display: block; color: #8592a3; font-size: .7rem; }}
-.lv-score {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.25rem; font-weight: 700; width: 3.6rem; }}
+.lv-score {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.25rem; font-weight: 700; width: 3rem; }}
 tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a2b; }}
-.lv-dk {{ width: 4.6rem; font-variant-numeric: tabular-nums; }}
-.lv-k {{ width: 5.4rem; font-variant-numeric: tabular-nums; font-weight: 600; }}
+.lv-dk {{ width: 4.2rem; font-variant-numeric: tabular-nums; }}
+.lv-k {{ width: 4.8rem; font-variant-numeric: tabular-nums; font-weight: 600; }}
+/* our own Monte Carlo column: tinted so it reads as ours, next to the two apps */
+.lv-card td.lv-ours {{ width: 3.6rem; font-variant-numeric: tabular-nums; font-weight: 700; color: {COLOR} !important; }}
+.lv-card th.lv-ours-h {{ color: {COLOR} !important; }}
 .lv-bar {{ display: block; height: 4px; background: #eceff3; border-radius: 2px; margin-top: 3px; overflow: hidden; }}
 .lv-bar b {{ display: block; height: 100%; }}
 .lv-foot {{ font-size: .74rem; color: #6b7889; margin-top: .3rem; }}

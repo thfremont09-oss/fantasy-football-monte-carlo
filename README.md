@@ -323,7 +323,8 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   as many whole $1 contracts as the stake covers at the ask, plus the fee
   (0.07 x contracts x price x (1 - price), rounded up to the cent).
 * **Our own Monte Carlo** (`ffmc/winprob.py`) sits next to DraftKings and Kalshi
-  on each game page as a comparison. It knows only each side's record, home
+  on every game card on the board (an "Ours" column) and on each game page, 1,000,000
+  simulated games each, rerun whenever the score or clock changes. It knows only each side's record, home
   advantage and, once the game starts, the score and clock, and plays the rest of
   the game out 1,000,000 times: a shrinking random margin for football and
   basketball (with a little late-game chaos), random goals for hockey and soccer

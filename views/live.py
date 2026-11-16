@@ -12,7 +12,7 @@ import html
 import streamlit as st
 
 from ffmc import live
-from ffmc.live_view import (CSS, ET, REFRESH, board, card, game_view, schedule, team_games, week)
+from ffmc.live_view import (CARD_SIMS, CSS, ET, REFRESH, board, card, game_view, schedule, team_games, week)
 from ffmc.ui import banner
 
 # --------------------------------------------------------------------- page
@@ -30,9 +30,10 @@ if game_key:
     st.stop()
 
 banner("live", "Live Odds",
-       "Scores and odds for the top leagues around the world, in one place: DraftKings lines next to Kalshi's live "
-       "win chances, updating every 15 seconds. Click any game for its stats and live odds chart.",
-       chips=["NFL · NBA · NHL · MLB · college", "Europe's top soccer + more", "Tennis · UFC"])
+       "Scores and odds for the top leagues around the world, in one place: DraftKings lines, Kalshi's live win "
+       "chances and our own Monte Carlo odds side by side, updating every 15 seconds. Click any game for its stats "
+       "and live odds chart.",
+       chips=["DraftKings · Kalshi · our Monte Carlo", "NFL · NBA · NHL · MLB · college", "Europe's top soccer + more"])
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def search_options() -> tuple[list[str], list]:
@@ -80,7 +81,8 @@ def live_board():
         shown = [g for g in shown if g.state == want]
     n_live = sum(g.state == "in" for g in games)
     st.caption(f"Updated {fetched.astimezone(ET):%I:%M:%S %p} ET · {len(games)} games across {len(live.LEAGUES)} leagues · "
-               f"{n_live} live now · DraftKings via ESPN, live chances from Kalshi · click a game for stats")
+               f"{n_live} live now · DraftKings via ESPN, live chances from Kalshi · **Ours** = our own Monte Carlo, "
+               f"{CARD_SIMS:,} simulated games each · click a game for stats")
     found = []
     if query:
         # A searched team's latest result (however long ago it ended) and next game (however far away),

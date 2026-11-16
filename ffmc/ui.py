@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-16b"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-16c"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -280,6 +280,8 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b
 .bb-pos { color: #4cc26f !important; } .bb-neg { color: #ff6b6b !important; }
 div[style*="background:#e3e7ee"] { background: #263241 !important; }
 .ffmc-wl-row { color: #dbe3ec; }
+.f1-card { background: #151f2b !important; border-color: #2a3644 !important; } .f1-team, .f1-nums small { color: #9fb0c3 !important; }
+.f1-card .f1-pic { background-color: #1c2836 !important; }
 """
 
 

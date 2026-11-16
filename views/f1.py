@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import html
 
 import altair as alt
 import numpy as np
@@ -145,7 +146,7 @@ def rows(idx: list[int], boost: int | None = None) -> pd.DataFrame:
     for i in idx:
         a = A[i]
         mult = res.boost_mult if i == boost else 1
-        out.append({"Pick": f"{a.name}" + (f"  · DRS {mult}x" if mult > 1 else ""),
+        out.append({"": a.photo or None, "Pick": f"{a.name}" + (f"  · DRS {mult}x" if mult > 1 else ""),
                     "Team": a.team if a.kind == "driver" else "Constructor",
                     "Price $M": a.price, "Expected": mean[i] * mult, "Bad weekend": p10[i] * mult,
                     "Great weekend": p90[i] * mult, "Recent avg": recent(a),
@@ -155,6 +156,7 @@ def rows(idx: list[int], boost: int | None = None) -> pd.DataFrame:
 
 
 CFG = {
+    "": st.column_config.ImageColumn("", width="small"),
     "Price $M": st.column_config.NumberColumn(format="$%.1f"),
     "Expected": st.column_config.NumberColumn(format="%.1f", help="Average F1 Fantasy points across the simulations"),
     "Bad weekend": st.column_config.NumberColumn(format="%.0f", help="10th percentile"),
@@ -165,13 +167,55 @@ CFG = {
     "Points per $M": st.column_config.NumberColumn(format="%.2f"),
 }
 
+def pick_card(i: int) -> str:
+    """A picture card: headshot (or team badge), name, team, price and expected points."""
+    a = A[i]
+    color, _ = f1.team_style(a.team or a.name)
+    mult = res.boost_mult if i == team.boost else 1
+    boost = f'<span class="f1-drs">DRS {mult}x</span>' if mult > 1 else ""
+    flag = f'<span class="f1-flag" style="background-image:url(\'{html.escape(a.flag)}\')"></span>' if a.flag else ""
+    pic = (f'<div class="f1-pic {"f1-badge" if a.kind == "constructor" else ""}" '
+           f'style="background-image:url(\'{html.escape(a.photo)}\')"></div>' if a.photo else '<div class="f1-pic"></div>')
+    sub = a.team if a.kind == "driver" else "Constructor"
+    return (f'<div class="f1-card" style="--tc:{color}">{boost}{pic}<div class="f1-body">'
+            f'<div class="f1-name">{html.escape(a.name)}</div><div class="f1-team">{flag}{html.escape(sub)}</div>'
+            f'<div class="f1-nums"><span><small>Price</small><b>${a.price:.1f}M</b></span>'
+            f'<span><small>Expected</small><b>{mean[i] * mult:.1f}</b></span></div></div></div>')
+
+
+st.markdown(f"""<style>
+.f1-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .8rem; margin: .4rem 0 1.2rem; }}
+.f1-grid.cons {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
+@media (max-width: 1000px) {{ .f1-grid, .f1-grid.cons {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }} }}
+@media (max-width: 600px) {{ .f1-grid, .f1-grid.cons {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+.f1-card {{ position: relative; background: #fff; border: 1px solid #dfe3e8; border-top: 4px solid var(--tc);
+  border-radius: 6px; overflow: hidden; }}
+.f1-pic {{ height: 132px; background: linear-gradient(180deg, #f3f5f8, #e7ebf0) ; background-size: auto 100%;
+  background-position: center bottom; background-repeat: no-repeat; }}
+.f1-card .f1-pic {{ background-color: color-mix(in srgb, var(--tc) 12%, #f3f5f8); }}
+.f1-pic.f1-badge {{ background-size: 84px 84px; background-position: center; }}
+.f1-body {{ padding: .55rem .7rem .7rem; }}
+.f1-name {{ font-weight: 700; font-size: .98rem; line-height: 1.2; }}
+.f1-team {{ font-size: .78rem; color: #5b6878; display: flex; align-items: center; gap: .35rem; margin-top: .1rem; }}
+.f1-flag {{ width: 18px; height: 12px; background: center / cover no-repeat; display: inline-block; border-radius: 2px; }}
+.f1-nums {{ display: flex; justify-content: space-between; margin-top: .45rem; }}
+.f1-nums small {{ display: block; font-size: .66rem; color: #6b7889; text-transform: uppercase; letter-spacing: .05em; }}
+.f1-nums b {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.3rem; }}
+.f1-drs {{ position: absolute; top: .45rem; right: .45rem; background: {COLOR}; color: #fff; font-size: .7rem;
+  font-weight: 700; padding: .12rem .45rem; border-radius: 4px; letter-spacing: .03em; }}
+</style>""", unsafe_allow_html=True)
+
 tabs = st.tabs(["Your team", "Every driver & constructor", "Other strong teams"])
 with tabs[0]:
-    st.subheader("Drivers")
     picks = sorted(team.drivers, key=lambda i: -mean[i])
+    cons_picks = sorted(team.constructors, key=lambda i: -mean[i])
+    st.markdown('<div class="f1-grid">' + "".join(pick_card(i) for i in picks) + '</div>'
+                '<div class="f1-grid cons">' + "".join(pick_card(i) for i in cons_picks) + '</div>',
+                unsafe_allow_html=True)
+    st.subheader("Drivers")
     st.dataframe(rows(picks, team.boost), hide_index=True, width="stretch", column_config=CFG)
     st.subheader("Constructors")
-    st.dataframe(rows(sorted(team.constructors, key=lambda i: -mean[i])).drop(columns=["Expected finish", "Team"]),
+    st.dataframe(rows(cons_picks).drop(columns=["Expected finish", "Team"]),
                  hide_index=True, width="stretch", column_config=CFG)
     st.caption(f"Put the DRS Boost on {A[team.boost].name}: the highest expected scorer in the team, so "
                f"multiplying them adds the most.")

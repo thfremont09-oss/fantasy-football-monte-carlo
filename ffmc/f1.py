@@ -69,6 +69,8 @@ class Asset:
     market_finish: float | None = None
     win: float | None = None            # Kalshi race-winner chance
     fastlap: float | None = None
+    photo: str = ""                     # driver headshot (ESPN) or team badge (an SVG drawn here)
+    flag: str = ""                      # driver's country flag (ESPN)
 
 
 @dataclass
@@ -231,6 +233,67 @@ def finalize(drivers: list[Asset]) -> None:
         d.exp_grid = 0.5 * d.exp_grid + 0.5 * d.exp_finish if d.form_finish is not None else d.exp_finish
 
 
+ESPN_F1 = "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard"
+HEADSHOT = "https://a.espncdn.com/i/headshots/f1/players/full/{id}.png"
+
+# Team colours for the constructor badges (and colour accents on driver cards).
+TEAM_COLORS = {
+    "mercedes": ("#00a19c", "MER"), "ferrari": ("#e8002d", "FER"), "red bull": ("#1e41ff", "RBR"),
+    "mclaren": ("#ff8000", "MCL"), "aston martin": ("#00665e", "AMR"), "alpine": ("#0090ff", "ALP"),
+    "williams": ("#005aff", "WIL"), "racing bulls": ("#6692ff", "RB"), "haas": ("#9b0000", "HAA"),
+    "audi": ("#bb0a30", "AUD"), "sauber": ("#00e701", "SAU"), "cadillac": ("#111111", "CAD"),
+}
+
+
+def team_style(team: str) -> tuple[str, str]:
+    """(colour, short name) for a constructor."""
+    t = team.lower()
+    for key, val in TEAM_COLORS.items():
+        if key in t:
+            return val
+    return "#5b6878", (team[:3] or "F1").upper()
+
+
+def team_badge(team: str) -> str:
+    """A square badge in the team's colour with its short name, as an SVG data URL (no outside image needed)."""
+    import base64
+    color, short = team_style(team)
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">'
+           f'<rect width="96" height="96" rx="10" fill="{color}"/>'
+           f'<rect y="70" width="96" height="26" fill="rgba(0,0,0,.18)"/>'
+           f'<text x="48" y="56" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" '
+           f'font-size="{30 if len(short) <= 3 else 24}" fill="#fff">{short}</text></svg>')
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+
+def apply_photos(http: CachedJSON, assets: list[Asset], races: list[dict]) -> None:
+    """Driver headshots and flags from ESPN's results for the last race; badges for the constructors."""
+    for a in assets:
+        if a.kind == "constructor":
+            a.photo = team_badge(a.team or a.name)
+    drivers = [a for a in assets if a.kind == "driver"]
+    dates = [r.get("date", "") for r in races[-3:]][::-1] or [""]
+    for day in dates:
+        params = [("dates", day.replace("-", ""))] if day else []
+        try:
+            data = http.get(ESPN_F1, params, ttl=86400)
+        except APIError:
+            continue
+        people = {}
+        for e in data.get("events") or []:
+            for comp in e.get("competitions") or []:
+                for c in comp.get("competitors") or []:
+                    ath = c.get("athlete") or {}
+                    if c.get("id") and ath.get("displayName"):
+                        people[_surname(ath["displayName"])] = (c["id"], (ath.get("flag") or {}).get("href", ""))
+        for d in drivers:
+            if not d.photo and _surname(d.name) in people:
+                pid, flag = people[_surname(d.name)]
+                d.photo, d.flag = HEADSHOT.format(id=pid), flag
+        if all(d.photo for d in drivers):
+            break
+
+
 def load_weekend(cache_dir=".ffmc_cache") -> tuple[Weekend, list[Asset]]:
     http = CachedJSON(cache_dir)
     weekend, assets = load_assets(http)
@@ -240,6 +303,7 @@ def load_weekend(cache_dir=".ffmc_cache") -> tuple[Weekend, list[Asset]]:
     except APIError:
         races, calendar = [], []
     weekend.races_used = apply_form(drivers, races)
+    apply_photos(http, assets, races)
     done = {r["round"] for r in races}
     nxt = next((r for r in calendar if r["round"] not in done), None)
     if nxt:

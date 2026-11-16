@@ -190,10 +190,10 @@ st.markdown(f"""<style>
 @media (max-width: 600px) {{ .f1-grid, .f1-grid.cons {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
 .f1-card {{ position: relative; background: #fff; border: 1px solid #dfe3e8; border-top: 4px solid var(--tc);
   border-radius: 6px; overflow: hidden; }}
-.f1-pic {{ height: 132px; background: linear-gradient(180deg, #f3f5f8, #e7ebf0) ; background-size: auto 100%;
-  background-position: center bottom; background-repeat: no-repeat; }}
+.f1-pic {{ height: 150px; background: linear-gradient(180deg, #f3f5f8, #e7ebf0); background-repeat: no-repeat;
+  background-size: 185% auto; background-position: 50% 0%; }}   /* F1's photos are full-length: zoom on head and shoulders */
 .f1-card .f1-pic {{ background-color: color-mix(in srgb, var(--tc) 12%, #f3f5f8); }}
-.f1-pic.f1-badge {{ background-size: 84px 84px; background-position: center; }}
+.f1-pic.f1-badge {{ background-size: 94% auto; background-position: center; }}   /* car pictures are wide */
 .f1-body {{ padding: .55rem .7rem .7rem; }}
 .f1-name {{ font-weight: 700; font-size: .98rem; line-height: 1.2; }}
 .f1-team {{ font-size: .78rem; color: #5b6878; display: flex; align-items: center; gap: .35rem; margin-top: .1rem; }}

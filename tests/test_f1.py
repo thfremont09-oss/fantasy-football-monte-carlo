@@ -61,3 +61,12 @@ def test_implied_finish_from_market():
 def test_names_match_across_sources():
     assert f1._surname("Carlos Sainz Jr.") == f1._surname("Carlos Sainz") == "sainz"
     assert f1._surname("Rafael Câmara") == "camara"
+
+
+def test_official_photo_links():
+    d = f1.Asset(id="1", name="Max Verstappen", kind="driver", team="Red Bull Racing", price=29, ref="MAXVER01")
+    assert f1.driver_photo(d, 2026).endswith("/common/f1/2026/redbullracing/maxver01/2026redbullracingmaxver01right.webp")
+    nocode = f1.Asset(id="2", name="Rafael Câmara", kind="driver", team="Haas F1 Team", price=5)
+    assert f1.driver_ref(nocode) == "rafcam01"                      # built the way F1 builds its codes
+    assert "/2026/haasf1team/2026haasf1teamcarright.webp" in f1.car_photo("Haas F1 Team", 2026)
+    assert "fallback" in f1.driver_photo(d, 2026) and "fallback" in f1.car_photo("Ferrari", 2026)

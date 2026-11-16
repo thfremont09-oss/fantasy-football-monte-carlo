@@ -58,6 +58,7 @@ class Asset:
     team: str
     price: float
     code: str = ""                      # three-letter code, e.g. VER
+    ref: str = ""                       # Formula 1's driver code, e.g. MAXVER01 (names its official photos)
     season_points: float = 0.0
     recent: list[float] = field(default_factory=list)   # F1 Fantasy points in recent rounds, oldest first
     selected: float = 0.0               # % of F1 Fantasy teams that own them
@@ -114,7 +115,7 @@ def load_assets(http: CachedJSON, history: int = 5) -> tuple[Weekend, list[Asset
         assets.append(Asset(
             id=str(p["PlayerId"]), kind=kind, team=p.get("TeamName", ""),
             name=(p.get("FUllName") or p.get("DisplayName") or p.get("TeamName", "")).strip(),
-            price=float(p.get("Value") or 0), code=p.get("DriverTLA") or "",
+            price=float(p.get("Value") or 0), code=p.get("DriverTLA") or "", ref=p.get("DriverReference") or "",
             season_points=float(p.get("OverallPpints") or 0), selected=float(p.get("SelectedPercentage") or 0)))
     # Points in each recent round (each round's feed has that round's score).
     by_id = {a.id: a for a in assets}
@@ -234,7 +235,33 @@ def finalize(drivers: list[Asset]) -> None:
 
 
 ESPN_F1 = "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard"
-HEADSHOT = "https://a.espncdn.com/i/headshots/f1/players/full/{id}.png"
+# Official Formula 1 images (each season's headshots and car renders). The d_ part is F1's own fallback
+# picture, used if a photo is missing, so a card never shows a broken image.
+F1_MEDIA = "https://media.formula1.com/image/upload"
+DRIVER_PHOTO = (F1_MEDIA + "/c_lfill,w_440/q_auto/d_common:f1:{y}:fallback:driver:{y}fallbackdriverright.webp"
+                "/v1740000001/common/f1/{y}/{team}/{ref}/{y}{team}{ref}right.webp")
+CAR_PHOTO = (F1_MEDIA + "/c_lfill,h_224/q_auto/d_common:f1:{y}:fallback:car:{y}fallbackcarright.webp"
+             "/v1740000001/common/f1/{y}/{team}/{y}{team}carright.webp")
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", _plain(text))
+
+
+def driver_ref(a: "Asset") -> str:
+    """F1's driver code: from the F1 Fantasy feed, or built the way F1 builds it (MAXVER01 = MAX + VER + 01)."""
+    if a.ref:
+        return a.ref.lower()
+    parts = _plain(a.name).split()
+    return (parts[0][:3] + parts[-1][:3] + "01") if len(parts) >= 2 else ""
+
+
+def driver_photo(a: "Asset", year: int) -> str:
+    return DRIVER_PHOTO.format(y=year, team=_slug(a.team), ref=driver_ref(a))
+
+
+def car_photo(team: str, year: int) -> str:
+    return CAR_PHOTO.format(y=year, team=_slug(team))
 
 # Team colours for the constructor badges (and colour accents on driver cards).
 TEAM_COLORS = {
@@ -266,31 +293,27 @@ def team_badge(team: str) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
 
 
-def apply_photos(http: CachedJSON, assets: list[Asset], races: list[dict]) -> None:
-    """Driver headshots and flags from ESPN's results for the last race; badges for the constructors."""
+def apply_photos(http: CachedJSON, assets: list[Asset], races: list[dict], year: int) -> None:
+    """Official F1 headshots for drivers and car pictures for constructors; country flags from ESPN."""
     for a in assets:
-        if a.kind == "constructor":
-            a.photo = team_badge(a.team or a.name)
+        a.photo = driver_photo(a, year) if a.kind == "driver" else car_photo(a.team or a.name, year)
     drivers = [a for a in assets if a.kind == "driver"]
-    dates = [r.get("date", "") for r in races[-3:]][::-1] or [""]
-    for day in dates:
+    for day in [r.get("date", "") for r in races[-3:]][::-1] or [""]:
         params = [("dates", day.replace("-", ""))] if day else []
         try:
             data = http.get(ESPN_F1, params, ttl=86400)
         except APIError:
             continue
-        people = {}
+        flags = {}
         for e in data.get("events") or []:
             for comp in e.get("competitions") or []:
                 for c in comp.get("competitors") or []:
                     ath = c.get("athlete") or {}
-                    if c.get("id") and ath.get("displayName"):
-                        people[_surname(ath["displayName"])] = (c["id"], (ath.get("flag") or {}).get("href", ""))
+                    if ath.get("displayName") and (ath.get("flag") or {}).get("href"):
+                        flags[_surname(ath["displayName"])] = ath["flag"]["href"]
         for d in drivers:
-            if not d.photo and _surname(d.name) in people:
-                pid, flag = people[_surname(d.name)]
-                d.photo, d.flag = HEADSHOT.format(id=pid), flag
-        if all(d.photo for d in drivers):
+            d.flag = d.flag or flags.get(_surname(d.name), "")
+        if all(d.flag for d in drivers):
             break
 
 
@@ -303,7 +326,7 @@ def load_weekend(cache_dir=".ffmc_cache") -> tuple[Weekend, list[Asset]]:
     except APIError:
         races, calendar = [], []
     weekend.races_used = apply_form(drivers, races)
-    apply_photos(http, assets, races)
+    apply_photos(http, assets, races, weekend.season)
     done = {r["round"] for r in races}
     nxt = next((r for r in calendar if r["round"] not in done), None)
     if nxt:

@@ -155,16 +155,35 @@ def simulate(bets: list[Bet], n: int = N_SIMS, seed: int = 5) -> list[Bet]:
     return bets
 
 
+FAIR_BAND = 0.03          # within 3% of fair counts as a fair price
+SIM_POOL = 40             # how many of the best-priced bets get the full 1,000,000-run simulation
+
+
 def best_bets(games: list[Game], book: str, sort: str = "value", top: int = 10, n: int = N_SIMS,
               min_win: float = 0.0) -> tuple[list[Bet], int]:
-    """(the best bets, how many were checked). Bets far worse than their price are left out."""
-    cands = candidates(games, book)
-    hopeful = [b for b in cands if b.ev > -0.04 and b.fair >= min_win - 0.02]           # skip clear losers before the heavy simulation
-    simulate(hopeful, n)
-    good = [b for b in hopeful if b.ev > -0.03 and b.win >= min_win]     # value bets, or close to a fair price
-    for b in good:
+    """(the best bets, how many were checked).
+
+    Always returns the best-priced bets that meet the minimum win chance, so the page is never empty when
+    there are bets to show. Each one is labelled by ``rating``: value, fair price, or overpriced.
+    """
+    cands = [b for b in candidates(games, book) if b.fair >= min_win - 0.02]
+    if sort == "value":
+        pool = sorted(cands, key=lambda b: -b.ev)[:SIM_POOL]
+    else:                     # "most likely": the likeliest winners, best price first among similar ones
+        pool = sorted(cands, key=lambda b: (-round(b.fair, 2), -b.ev))[:SIM_POOL]
+    simulate(pool, n)
+    pool = [b for b in pool if b.win >= min_win]
+    for b in pool:
         b.value = b.ev > 0 and b.confidence >= 0.55
-    if sort != "value":       # "most likely": favourites, but only at about a fair price or better
-        good = [b for b in good if b.ev >= -0.01]
-    key = (lambda b: (not b.value, -b.ev)) if sort == "value" else (lambda b: (not b.value, -b.win))
-    return sorted(good, key=key)[:top], len(cands)
+    if sort == "value":
+        key = lambda b: (not b.value, -b.ev)
+    else:
+        key = lambda b: (b.ev < -FAIR_BAND, -b.win)      # likeliest first, overpriced ones last
+    return sorted(pool, key=key)[:top], len(candidates(games, book))
+
+
+def rating(b: Bet) -> str:
+    """'value', 'fair' or 'overpriced'."""
+    if b.value:
+        return "value"
+    return "fair" if b.ev >= -FAIR_BAND else "overpriced"

@@ -214,7 +214,7 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .bb-pos {{ color: #1e8e3e; }} .bb-neg {{ color: #d93025; }}
 .bb-tag {{ display: inline-block; padding: .08rem .45rem; border-radius: 4px; font-weight: 700; font-size: .7rem;
   margin-right: .35rem; color: #fff; }}
-.bb-value {{ background: #1e8e3e; }} .bb-fair {{ background: #7b8794; }}
+.bb-value {{ background: #1e8e3e; }} .bb-fair {{ background: #7b8794; }} .bb-over {{ background: #b26a00; }}
 .ffmc-wl-row {{ display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0 0 .6rem; }}
 .ffmc-wl-row b {{ min-width: 3rem; }}
 .wl {{ display: inline-block; padding: .18rem .5rem; border-radius: 5px; font-size: .82rem; font-weight: 600;
@@ -395,8 +395,10 @@ def bet_card(b: bestbets.Bet, stake: float) -> str:
     g = b.game
     t = b.ticket(stake)
     avg = b.win * t.returned - t.spent           # average result over the simulations
-    tag = ('<span class="bb-tag bb-value">Value</span>' if b.value
-           else '<span class="bb-tag bb-fair">Fair price</span>')
+    r = bestbets.rating(b)
+    tag = {"value": '<span class="bb-tag bb-value">Value</span>',
+           "fair": '<span class="bb-tag bb-fair">Fair price</span>',
+           "overpriced": f'<span class="bb-tag bb-over">Overpriced {abs(b.ev) * 100:.0f}%</span>'}[r]
     vs = " vs ".join(html.escape(s.name) for s in g.sides)
     if b.book == "Kalshi":
         if t.contracts == 0:
@@ -459,15 +461,16 @@ def render_best_bets() -> None:
                    f"lines · {with_k} with Kalshi prices)")
         best.clear()                    # don't keep an empty answer for a whole minute
     elif not bets:
-        st.info("Nothing worth showing right now with these settings. Try a lower minimum win chance or the "
-                "other app.")
+        st.info(f"{checked} {book} bets were checked, but none has at least a {min_win}% chance to win. "
+                "Lower the **Minimum win chance** to see them.")
     else:
         if not n_value:
-            st.caption("No clear value right now: these are the picks priced closest to fair or a touch better.")
+            st.caption(f"No clear value on {book} right now, so these are its best-priced bets. The tag on each "
+                       "card says whether the price is fair or how much too high it is.")
         st.markdown(f'<div class="lv-grid">{"".join(bet_card(b, stake) for b in bets)}</div>',
                     unsafe_allow_html=True)
     st.caption("**You bet / get back / profit** are exact for your stake at the current price (Kalshi: whole $1 contracts plus its fee). **Average result** is what the bet makes on average across the 1,000,000 simulations; any single bet either pays the full amount or loses the stake. **Value** = better than its price with at least 55% confidence. **Fair price** = within about 3% "
-               "of fair. Win chance and the average result come from the simulations; any single bet still wins "
+               "of fair. **Overpriced** = costs more than it's likely worth (by the % shown). Win chance and the average result come from the simulations; any single bet still wins "
                "or loses. For information only, not betting advice. Must be 21+; if gambling stops being fun, "
                "call 1-800-GAMBLER.")
 

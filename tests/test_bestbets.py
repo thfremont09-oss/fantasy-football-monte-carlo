@@ -40,10 +40,11 @@ def test_started_games_and_missing_prices_are_skipped():
     assert bestbets.best_bets([g2], "DraftKings", n=10_000)[1] == 0
 
 
-def test_bad_prices_are_left_out():
+def test_bad_prices_are_labelled_and_ranked_last():
     g = game(100, -300, 0.30, 0.70)                     # DraftKings pays even money on a 30% shot
     bets, _ = bestbets.best_bets([g], "DraftKings", n=100_000)
-    assert all(b.pick != "Away" for b in bets)
+    away = next(b for b in bets if b.pick == "Away")
+    assert bestbets.rating(away) == "overpriced" and bets[-1] is away
 
 
 def bet(book, american=None, ask=None):
@@ -67,3 +68,11 @@ def test_kalshi_exact_payout_with_fee():
     assert (t.contracts, t.fee, t.spent, t.returned) == (39, 0.50, 9.86, 39.0)
     assert t.profit == pytest.approx(29.14)
     assert bet("Kalshi", ask=0.24).ticket(0.20).contracts == 0
+
+
+def test_always_shows_best_priced_bets_even_when_all_overpriced():
+    # Kalshi sells both sides well above DraftKings' fair chances: nothing is value, but bets still show.
+    g = game(-110, -110, 0.5, 0.5, ask_away=0.58, ask_home=0.58)
+    bets, checked = bestbets.best_bets([g], "Kalshi", n=50_000)
+    assert checked == 2 and len(bets) == 2
+    assert all(bestbets.rating(b) == "overpriced" for b in bets)

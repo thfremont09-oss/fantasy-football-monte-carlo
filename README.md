@@ -332,7 +332,7 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   Kalshi in points.
 * **Search** is a type-ahead box over all ~1,600 teams and 26 leagues, fixes typos
   (`bayren` → Bayern Munich, via `difflib`) and also shows each matching team's
-  **next game however far away**, one per competition (ESPN team schedules).
+  **latest result** (any game started in the last 10 days, however long ago it ended) and **next game however far away**, one per competition (ESPN team schedules), shown first.
 * **Schedule tab:** choose a league (nothing loads until you do) to see its next
   7 days grouped by day, or pick one day, e.g. Sunday.
 * Each card has a colored league badge (one color per sport) with the sport and

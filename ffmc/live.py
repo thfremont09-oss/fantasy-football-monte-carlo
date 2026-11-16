@@ -435,12 +435,12 @@ def load_board(cache_dir=".ffmc_cache", leagues=LEAGUES, now: dt.datetime | None
         gs = list(seen.values())
         attach_kalshi([g for g in gs if g.state != "post"], events, lg[3])
         games += gs
-    # Keep what's relevant: live now, finished in the last 18 hours, or starting in the next 36.
+    # Keep what's relevant: live now, started in the last 24 hours and finished, or starting in the next 36.
     keep = []
     for g in games:
         if g.state == "in":
             keep.append(g)
-        elif g.state == "post" and now - g.start < dt.timedelta(hours=18):
+        elif g.state == "post" and now - g.start < dt.timedelta(hours=24):
             keep.append(g)
         elif g.state == "pre" and dt.timedelta(hours=-2) < g.start - now < dt.timedelta(hours=36):
             keep.append(g)
@@ -514,42 +514,67 @@ def correct(query: str, index: list[tuple[str, str, list[str]]]) -> str | None:
     return words[best[0]] if best else None
 
 
-def next_games(query: str, cache_dir=".ffmc_cache", now: dt.datetime | None = None) -> list[Game]:
-    """The next game (however far away) for every team matching the search, in each competition."""
+RECENT_DAYS = 10        # how far back "latest result" looks
+
+
+def team_games(query: str, cache_dir=".ffmc_cache", now: dt.datetime | None = None
+               ) -> tuple[list[Game], list[Game]]:
+    """(latest result, next game) for every team matching the search, in each competition it plays in.
+
+    The latest result is the most recent game that has started in the last 10 days, however long ago it
+    finished, so a score you missed is always one search away. Its score comes from the live scoreboard.
+    """
     now = now or dt.datetime.now(dt.timezone.utc)
     http = CachedJSON(cache_dir)
     index = team_index(cache_dir)
     teams = find_teams(query, index) or find_teams(correct(query, index) or "", index)
 
-    def one(team):
-        league, tid, _ = team
-        sport, _, path, _ = league_info(league)
-        params = [("fixture", "true")] if sport == "Soccer" else []
+    def events(path: str, tid: str, params: list) -> list[tuple[dt.datetime, str, str]]:
         try:
             data = http.get(f"{TEAMS.format(path=path)}/{tid}/schedule", params, ttl=1800)
         except APIError:
-            return None
-        upcoming = []
+            return []
+        out = []
         for e in data.get("events") or []:
             state = ((e.get("competitions") or [{}])[0].get("status") or {}).get("type", {}).get("state")
             try:
-                start = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
-            except (KeyError, ValueError):
+                out.append((dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00")), str(e.get("id")), state))
+            except (KeyError, ValueError, AttributeError):
                 continue
-            if state == "in" or (state == "pre" and start > now - dt.timedelta(hours=3)):
-                upcoming.append((start, str(e.get("id"))))
-        if not upcoming:
-            return None
-        start, eid = min(upcoming)
+        return out
+
+    def find(league: str, start: dt.datetime, eid: str) -> Game | None:
         day = start.astimezone(EASTERN).date()
         return next((g for g in load_schedule(league, day, cache_dir) if g.id == eid or g.event_id == eid), None)
 
+    def one(team):
+        league, tid, _ = team
+        sport, _, path, _ = league_info(league)
+        # Soccer schedules list results by default and upcoming fixtures only with fixture=true.
+        played = events(path, tid, [])
+        ahead = events(path, tid, [("fixture", "true")]) if sport == "Soccer" else played
+        recent = [x for x in played if now - dt.timedelta(days=RECENT_DAYS) <= x[0] <= now]
+        upcoming = [x for x in ahead if x[2] == "in" or (x[2] == "pre" and x[0] > now - dt.timedelta(hours=3))]
+        last = find(league, *max(recent)[:2]) if recent else None
+        nxt = find(league, *min(upcoming)[:2]) if upcoming else None
+        return last, nxt
+
     with ThreadPoolExecutor(6) as pool:
-        found = [g for g in pool.map(one, teams) if g is not None]
-    seen: dict[str, Game] = {}
-    for g in sorted(found, key=lambda g: g.start):
-        seen.setdefault(g.key, g)
-    return list(seen.values())
+        pairs = list(pool.map(one, teams))
+
+    def unique(gs):
+        seen: dict[str, Game] = {}
+        for g in sorted((g for g in gs if g is not None), key=lambda g: g.start):
+            seen.setdefault(g.key, g)
+        return list(seen.values())
+    recent = unique(p[0] for p in pairs)
+    upcoming = [g for g in unique(p[1] for p in pairs) if g.key not in {r.key for r in recent}]
+    return recent, upcoming
+
+
+def next_games(query: str, cache_dir=".ffmc_cache", now: dt.datetime | None = None) -> list[Game]:
+    """The next game (however far away) for every team matching the search, in each competition."""
+    return team_games(query, cache_dir, now)[1]
 
 
 def league_info(name: str) -> tuple[str, str, str, str]:

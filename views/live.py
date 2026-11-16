@@ -12,7 +12,7 @@ import html
 import streamlit as st
 
 from ffmc import live
-from ffmc.live_view import (CSS, ET, REFRESH, board, card, game_view, next_games, schedule, week)
+from ffmc.live_view import (CSS, ET, REFRESH, board, card, game_view, schedule, team_games, week)
 from ffmc.ui import banner
 
 # --------------------------------------------------------------------- page
@@ -81,18 +81,30 @@ def live_board():
     n_live = sum(g.state == "in" for g in games)
     st.caption(f"Updated {fetched.astimezone(ET):%I:%M:%S %p} ET · {len(games)} games across {len(live.LEAGUES)} leagues · "
                f"{n_live} live now · DraftKings via ESPN, live chances from Kalshi · click a game for stats")
+    found = []
     if query:
-        # A team's next game, however far away (one per competition it plays in).
-        ahead = [g for g in next_games(query) if g.key not in {x.key for x in shown}]
-        if ahead:
-            st.markdown(f'<div class="lv-count">Next game{"s" if len(ahead) > 1 else ""} · {html.escape(query)}</div>'
-                        + grid(ahead, sched=True), unsafe_allow_html=True)
+        # A searched team's latest result (however long ago it ended) and next game (however far away),
+        # one per competition, shown first. If the board has the same game, its fresher copy is used.
+        recent, ahead = team_games(query)
+        on_board = {g.key: g for g in shown}
+        recent = [on_board.pop(g.key, g) for g in recent if not want or g.state == want]
+        ahead = [on_board.pop(g.key, g) for g in ahead if not want or g.state == want]
+        shown = list(on_board.values())
+        for title, part in ((f"Latest result{'s' if len(recent) > 1 else ''}", recent),
+                            (f"Next game{'s' if len(ahead) > 1 else ''}", ahead)):
+            if part:
+                found += part
+                st.markdown(f'<div class="lv-count">{title} · {html.escape(query)}</div>' + grid(part, sched=True),
+                            unsafe_allow_html=True)
     if not shown:
         if not query:
             st.info("No games match. Try more leagues, or **All**.")
-        elif not ahead:
+        elif not found:
             st.info("No games found for that search. Try a team, player or league name.")
         return
+    if found:
+        st.markdown('<div class="lv-count" style="font-size:1rem;opacity:.7">More matching games</div>',
+                    unsafe_allow_html=True)
     for label, state in (("Live now", "in"), ("Upcoming", "pre"), ("Final", "post")):
         part = [g for g in shown if g.state == state]
         if part:

@@ -48,6 +48,12 @@ def next_games(query: str) -> list[live.Game]:
     return live.next_games(query)
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def team_games(query: str) -> tuple[list[live.Game], list[live.Game]]:
+    """(latest result, next game) for a searched team; refreshed every 30 seconds so scores stay current."""
+    return live.team_games(query)
+
+
 @st.cache_data(ttl=12, show_spinner=False)
 def history(series: str, ticker: str, hours: float, interval: int):
     return live.kalshi_history(series, ticker, hours, interval)

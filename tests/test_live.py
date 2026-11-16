@@ -202,3 +202,24 @@ def test_kalshi_rate_limit_retries_then_falls_back(monkeypatch):
     live._KALSHI_LAST.clear()
     calls["n"] = 0
     assert live.kalshi_prices(Http(99), "KXTEST") == {}                         # nothing to fall back on
+
+
+def test_team_search_finds_latest_result_and_next_game(monkeypatch):
+    now = dt.datetime(2026, 11, 16, 2, 0, tzinfo=dt.timezone.utc)
+    sched = {"events": [
+        {"id": "10", "date": "2026-11-12T00:00Z", "competitions": [{"status": {"type": {"state": "post"}}}]},
+        {"id": "11", "date": "2026-11-15T23:00Z", "competitions": [{"status": {"type": {"state": "post"}}}]},
+        {"id": "12", "date": "2026-11-17T00:00Z", "competitions": [{"status": {"type": {"state": "pre"}}}]}]}
+    monkeypatch.setattr(live, "team_index", lambda cache_dir=None: [("NBA", "2", ["Boston Celtics", "Celtics"])])
+    monkeypatch.setattr(live.CachedJSON, "get", lambda self, url, params=None, **kw: sched)
+
+    def fake_schedule(league, day, cache_dir=None):
+        e = event(state="post" if day.day == 15 else "pre")
+        g = live._game(e["competitions"][0], e, "Basketball", league)
+        g.id = "11" if day.day == 15 else "12"
+        g.path, g.event_id = "basketball/nba", g.id
+        return [g]
+    monkeypatch.setattr(live, "load_schedule", fake_schedule)
+    recent, upcoming = live.team_games("celtices", now=now)          # typo on purpose
+    assert [g.id for g in recent] == ["11"] and recent[0].state == "post"
+    assert [g.id for g in upcoming] == ["12"]

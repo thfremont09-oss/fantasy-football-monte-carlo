@@ -219,6 +219,8 @@ def tools() -> str:
         ("#c75a1c", "March Madness", "march-madness", "Title odds and a full bracket to fill out."),
         ("#5b3cc4", "Parlay Lab", "parlays", "Parlays built for your risk and payout."),
         ("#a3243f", "Niche Sports", "niche", "Table tennis, esports and every obscure market."),
+        ("#c0392b", "Track record", "track-record", "How every tool did on games that already happened."),
+        ("#6b7280", "How it works", "how-it-works", "The method and the code, in plain English."),
     ]
     return ('<div class="hd">Tools</div><div class="tools">' + "".join(
         f'<a href="{u}" target="_self"><b><i style="background:{c}"></i>{esc(n)}</b><span>{esc(d)}</span></a>'

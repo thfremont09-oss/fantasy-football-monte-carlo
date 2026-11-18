@@ -365,3 +365,20 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
 * **Hover any line** (moneylines on Live Odds, the game page and Best Bets, plus spreads and over/unders) for a
   popup saying what it means in money for a $10 bet: what you'd win, what you'd get back, and what you'd lose.
   Best Bets cards show the pick's moneyline on DraftKings, on Kalshi and from our sims.
+
+## Track record
+
+`views/record.py` (**Record** in the header) with `ffmc/record.py` replays every tool on games that already
+happened, using only what it would have known beforehand, and grades it on what really happened:
+
+* **Best Bets** (last 7 days): records rolled back to before each game (ESPN shows them including it),
+  Kalshi's price from its last hourly candle before kick-off, our simulation, the same pick rule as the Best
+  Bets page (up to 12 a day), then win/lose and real profit at $10 a pick, plus how many wins Kalshi's prices and
+  our sims expected.
+* **F1 Fantasy** (last 6 races): that round's prices and earlier races only; our team's real points vs the best
+  team possible in hindsight under $100M.
+* **FPL** (last 4 gameweeks): player stats rebuilt to before each gameweek (season totals minus that gameweek
+  and later, from FPL's live data); our XI and captain vs FPL's average and top manager scores.
+* **NFL** (last 3 weeks, `ffmc/backtest.py`): our lineup vs the projections-only lineup and the best possible.
+
+Results are recomputed once a day (about 40 seconds the first time) and cached.

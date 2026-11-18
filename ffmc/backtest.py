@@ -31,6 +31,7 @@ class Backtest:
     scoring: str
     predicted: list[Row]
     actual_best: list[Row]
+    projection_total: float = 0.0   # what the best lineup by projections alone (no simulation) actually scored
 
     @property
     def predicted_total(self) -> float:
@@ -82,7 +83,11 @@ def run_backtest(client: SleeperClient, season: int, week: int, scoring: str = "
     actual_best = [Row(slot, player_name(players_db[ids[j]]), positions[j],
                        players_db[ids[j]].get("team") or "FA", pred_mean.get(ids[j], 0.0), actual[ids[j]])
                    for slot, j in zip(slate.slots, best) if j >= 0]
-    return Backtest(season, week, slate.scoring_name, predicted, actual_best)
+    # 4) A no-simulation baseline: the best lineup by the raw projections alone.
+    pool = [p for p in slate.players if p.projection > 0]
+    proj = best_lineup(np.array([p.projection for p in pool]), [p.position for p in pool], slate.slots)
+    projection_total = sum(actual.get(pool[j].player_id, 0.0) for j in proj if j >= 0)
+    return Backtest(season, week, slate.scoring_name, predicted, actual_best, projection_total)
 
 
 def render_backtest(bt: Backtest) -> str:

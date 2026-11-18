@@ -103,10 +103,11 @@ def _feed(http: CachedJSON, path: str, ttl: float) -> dict:
     return http.get(f"{FEEDS}/{path}", ttl=ttl, headers=UA)["Data"]["Value"]
 
 
-def load_assets(http: CachedJSON, history: int = 5) -> tuple[Weekend, list[Asset]]:
+def load_assets(http: CachedJSON, history: int = 5, gid: int | None = None) -> tuple[Weekend, list[Asset]]:
+    """Prices and recent points for the next round, or for a past round ``gid`` (prices as they were then)."""
     limits = _feed(http, "limits/constraints.json", 1800)
-    gid = int(limits["GamedayId"])
-    players = _feed(http, f"drivers/{gid}_en.json", 1800)
+    gid = gid or int(limits["GamedayId"])
+    players = _feed(http, f"drivers/{gid}_en.json", 1800 if gid == int(limits["GamedayId"]) else 86400 * 30)
     assets = []
     for p in players:
         if str(p.get("IsActive", "1")) != "1":

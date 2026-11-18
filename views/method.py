@@ -212,14 +212,9 @@ for parlay in candidates(your_settings):
 st.write("")
 eyebrow("Track record")
 st.header("How it has done")
-st.write("Each tool can be rerun on past weeks and tournaments using only what was known beforehand.")
-m1, m2, m3 = st.columns(3, gap="medium")
-m1.metric("NFL 2026, week 9: optimizer's lineup", "186.7 pts", "+8.2 vs. its own projection")
-m2.metric("Best lineup possible in hindsight", "260.9 pts")
-m2.caption("The optimizer's lineup captured 72% of it.")
-m3.metric("2026 March Madness bracket (ESPN scoring)", "≈1,000 / 1,920")
-m3.caption("Champion Michigan was its #2 title pick before the tournament.")
-st.caption("Single results, not long-run averages.")
+st.write("Every tool is replayed on games that already happened, using only what it would have known beforehand, "
+         "and graded on what really happened: Best Bets hit rate and profit, F1 and FPL points, NFL lineups.")
+st.page_link("views/record.py", label="See the full track record", icon=":material/insights:")
 
 st.divider()
 st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboards and news, the official Fantasy Premier League API, the "

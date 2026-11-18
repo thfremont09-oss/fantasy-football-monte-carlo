@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html
+import re
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
@@ -109,6 +110,57 @@ def ml_meaning(name: str, line: int, stake: float = 10.0) -> str:
     return f"{name} {american(line)}: bet ${risk:,.2f}".replace(".00", "") + f" to win ${stake:,.0f}"
 
 
+def money_tip(line: int | None, who: str, source: str = "DraftKings", stake: float = 10.0) -> str:
+    """Hover text: what a moneyline means in money, for a $10 bet."""
+    if line is None:
+        return ""
+    if line > 0:
+        win = stake * line / 100
+        text = (f"{who} {american(line)} ({source}): the underdog. Bet ${stake:,.0f} and if {who} wins you win "
+                f"${win:,.2f}, so you get back ${stake + win:,.2f}. If they lose, you lose your ${stake:,.0f}.")
+    else:
+        risk = stake * -line / 100
+        text = (f"{who} {american(line)} ({source}): the favourite. Bet ${risk:,.2f} to win ${stake:,.0f}; "
+                f"if {who} wins you get back ${risk + stake:,.2f}. If they lose, you lose your ${risk:,.2f}.")
+    if source != "DraftKings":
+        text += " (Converted from a win chance; " + ("Kalshi pays $1 per contract." if source == "Kalshi"
+                                                     else "this is the fair line our simulations imply.") + ")"
+    return text
+
+
+def spread_tip(spread: str) -> str:
+    """'TENN +2.5 (-110)' -> what that bet means, in plain words."""
+    m = re.match(r"\s*(.+?)\s+([+-]?\d+(?:\.\d+)?)\s*(?:\(([+-]?\d+)\))?", spread or "")
+    if not m:
+        return ""
+    team, line, odds = m.group(1), float(m.group(2)), m.group(3)
+    pts = abs(line)
+    if line > 0:
+        text = (f"Spread {team} +{pts:g}: bet on {team} and you win if they win the game, or lose by less than "
+                f"{pts:g} points.")
+    else:
+        text = f"Spread {team} -{pts:g}: bet on {team} and you only win if they win by more than {pts:g} points."
+    if odds:
+        o = int(odds)
+        text += (f" At {american(o)}, bet ${10 * -o / 100:,.2f} to win $10." if o < 0
+                 else f" At {american(o)}, a $10 bet wins ${10 * o / 100:,.2f}.")
+    return text
+
+
+def total_tip(total: str) -> str:
+    """'O/U 149.5 (o -110 / u -110)' -> what over and under mean."""
+    m = re.search(r"(\d+(?:\.\d+)?)", total or "")
+    if not m:
+        return ""
+    t = float(m.group(1))
+    return (f"Over/under {t:g}: a bet on the combined score. 'Over' wins if both teams together score more than "
+            f"{t:g}; 'under' wins if they score less. A line of -110 means bet $11 to win $10.")
+
+
+def tip_attr(text: str) -> str:
+    return f' data-tip="{html.escape(text, quote=True)}"' if text else ""
+
+
 def ml_cell(p: float | None) -> str:
     """Moneyline on top, the win chance small underneath."""
     line = to_moneyline(p)
@@ -203,18 +255,30 @@ def card(g: live.Game, sched: bool = False) -> str:
         bar = (f'<span class="lv-bar"><b style="width:{(s.kalshi or 0) * 100:.0f}%;background:{SIDE_COLORS[i % 2]}"></b></span>'
                if s.kalshi is not None else "")
         rec = f'<small>{html.escape(s.record)}</small>' if s.record else ""
-        odds = ("" if g.state == "post" else f'<td class="lv-dk">{american(s.dk)}</td>'
-                f'<td class="lv-k{" lv-fav" if i == best else ""}">{ml_cell(s.kalshi)}{bar}</td>'
-                f'<td class="lv-ours">{ml_cell(ours[i] if i < 2 else None)}</td>')
+        who = s.short or s.name
+        odds = ("" if g.state == "post" else
+                f'<td class="lv-dk has-tip"{tip_attr(money_tip(s.dk, who))}>{american(s.dk)}</td>'
+                f'<td class="lv-k has-tip{" lv-fav" if i == best else ""}"'
+                f'{tip_attr(money_tip(to_moneyline(s.kalshi), who, "Kalshi"))}>{ml_cell(s.kalshi)}{bar}</td>'
+                f'<td class="lv-ours has-tip"{tip_attr(money_tip(to_moneyline(ours[i] if i < 2 else None), who, "our sims"))}>'
+                f'{ml_cell(ours[i] if i < 2 else None)}</td>')
         rows.append(f'<tr class="{win.strip()}"><td class="lv-team">{logo_html(s)}<span>{html.escape(s.name)}{rec}</span></td>'
                     f'<td class="lv-score">{html.escape(s.score) if g.state != "pre" else ""}</td>{odds}</tr>')
     if g.state != "post" and (g.draw_dk is not None or g.draw_kalshi is not None):
         rows.append(f'<tr><td class="lv-team"><span class="lv-logo"></span><span>Draw</span></td><td></td>'
-                    f'<td class="lv-dk">{american(g.draw_dk)}</td><td class="lv-k">{ml_cell(g.draw_kalshi)}</td>'
-                    f'<td class="lv-ours">{ml_cell(mine.draw if mine else None)}</td></tr>')
-    foot = " · ".join(x for x in (f"Spread {g.spread}" if g.spread else "", g.total) if x)
+                    f'<td class="lv-dk has-tip"{tip_attr(money_tip(g.draw_dk, "A draw"))}>{american(g.draw_dk)}</td>'
+                    f'<td class="lv-k has-tip"{tip_attr(money_tip(to_moneyline(g.draw_kalshi), "A draw", "Kalshi"))}>'
+                    f'{ml_cell(g.draw_kalshi)}</td>'
+                    f'<td class="lv-ours has-tip"{tip_attr(money_tip(to_moneyline(mine.draw if mine else None), "A draw", "our sims"))}>'
+                    f'{ml_cell(mine.draw if mine else None)}</td></tr>')
+    bits = []
+    if g.spread:
+        bits.append(f'<span class="has-tip"{tip_attr(spread_tip(g.spread))}>Spread {html.escape(g.spread)}</span>')
+    if g.total:
+        bits.append(f'<span class="has-tip"{tip_attr(total_tip(g.total))}>{html.escape(g.total)}</span>')
     if g.state == "in" and any(s.dk for s in g.sides):
-        foot = (foot + " · " if foot else "") + "DraftKings line is pre-game"
+        bits.append("DraftKings line is pre-game")
+    foot = " · ".join(bits)
     # Games beyond the live board carry their date, so the game page knows where to find them.
     day = f"&d={g.start.astimezone(ET).date().isoformat()}" if sched else ""
     return (f'<a class="lv-cardlink" href="?game={quote(g.key)}{day}" target="_self">'
@@ -224,7 +288,7 @@ def card(g: live.Game, sched: bool = False) -> str:
             + ("" if g.state == "post" else '<th>DraftKings</th><th>Kalshi</th><th class="lv-ours-h">Ours</th>')
             + '</tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table>' + ml_explain(g) + sim_vs_kalshi(g, mine)
-            + (f'<div class="lv-foot">{html.escape(foot)}</div>' if foot else "")
+            + (f'<div class="lv-foot">{foot}</div>' if foot else "")
             + '<div class="lv-more">Stats &amp; odds chart →</div></div></a>')
 
 
@@ -275,7 +339,25 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .ed-bars div.k i {{ background: #8a94a3; }}
 .ed-bars b {{ text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }}
 .bb-card .ed-bars {{ margin-bottom: .55rem; }}
+.ed-lines {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; margin: 0 0 .5rem; }}
+.ed-line {{ border: 1px solid var(--line); border-radius: 6px; padding: .3rem .5rem .35rem; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--ink); background: var(--card); }}
+.ed-line small {{ display: block; font-size: .66rem; font-weight: 600; color: var(--muted); }}
+.ed-lines .ed-line:first-child::after {{ left: 0; right: auto; }}
+.ed-extra {{ margin: -.1rem 0 .45rem; }}
 .lv-card small.lv-p {{ display: block; font-size: .68rem; font-weight: 500; color: var(--muted); line-height: 1.1; }}
+/* hover popups that say what a line means in money */
+.has-tip {{ position: relative; cursor: help; }}
+.has-tip::after {{ content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 8px); width: 250px;
+  white-space: normal; text-align: left; background: #111827 !important; color: #f9fafb !important; font: 500 .78rem/1.45
+  "IBM Plex Sans", sans-serif; letter-spacing: 0; text-transform: none; padding: .55rem .7rem; border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25); opacity: 0; visibility: hidden; transform: translateY(4px);
+  transition: opacity .12s ease, transform .12s ease; z-index: 60; pointer-events: none; }}
+.lv-foot .has-tip::after {{ left: 0; right: auto; }}
+.has-tip:not([data-tip])::after, .has-tip[data-tip=""]::after {{ display: none; }}
+@media (hover: hover) {{ .has-tip:hover::after {{ opacity: 1; visibility: visible; transform: translateY(0); }}
+  .has-tip:hover {{ text-decoration: underline dotted; text-underline-offset: 3px; }} }}
+.lv-card {{ overflow: visible !important; }}
 .lv-howto {{ font-size: .88rem; line-height: 1.5; color: var(--sub); background: var(--soft); border: 1px solid var(--line);
   border-radius: 6px; padding: .6rem .85rem; margin: .2rem 0 .6rem; }}
 .lv-howto b {{ color: var(--ink); }}
@@ -398,18 +480,22 @@ def game_view(key: str, day: str | None = None) -> None:
         score = html.escape(", ".join(f"{a}-{h}" for a, h in zip(a_sets, h_sets)))
     else:
         score = f'{html.escape(away.score or "0")} – {html.escape(home.score or "0")}'
-    def row(label: str, value: str) -> str:
-        return f'<div class="gd-row"><span>{html.escape(label)}</span><b>{html.escape(value)}</b></div>'
+    def row(label: str, value: str, tip: str = "") -> str:
+        cls = ' class="has-tip"' if tip else ""
+        return (f'<div class="gd-row"><span>{html.escape(label)}</span><b{cls}{tip_attr(tip)}>{html.escape(value)}</b>'
+                f'</div>')
 
     where = " · ".join(html.escape(x) for x in (d.venue, d.broadcast) if x)
-    dk = [row(away.name, american(away.dk)), row(home.name, american(home.dk))]
+    dk = [row(away.name, american(away.dk), money_tip(away.dk, away.name)),
+          row(home.name, american(home.dk), money_tip(home.dk, home.name))]
     if g.draw_dk is not None:
-        dk.append(row("Draw", american(g.draw_dk)))
+        dk.append(row("Draw", american(g.draw_dk), money_tip(g.draw_dk, "A draw")))
     if g.spread:
         dk.append(row("Spread", g.spread))
     if g.total:
         dk.append(row("Total", g.total))
-    ks = [row(away.name, pct(away.kalshi)), row(home.name, pct(home.kalshi))]
+    ks = [row(away.name, pct(away.kalshi), money_tip(to_moneyline(away.kalshi), away.name, "Kalshi")),
+          row(home.name, pct(home.kalshi), money_tip(to_moneyline(home.kalshi), home.name, "Kalshi"))]
     if g.draw_kalshi is not None:
         ks.append(row("Draw", pct(g.draw_kalshi)))
     if d.predictor:
@@ -526,6 +612,28 @@ def bet_card(b: bestbets.Bet, stake: float) -> str:
             f'<div class="lv-foot">{tag} Fair chance from {html.escape(b.sources)}</div></div></a>')
 
 
+def edge_lines(e: bestbets.Edge) -> str:
+    """The pick's moneyline on DraftKings, on Kalshi and from our sims, plus the game's spread and total,
+    each with a hover popup saying what it means in money."""
+    g, s = e.game, e.side
+    who = s.short or s.name
+    chips = []
+    for label, line, src in (("DraftKings", s.dk, "DraftKings"), ("Kalshi", to_moneyline(e.kalshi), "Kalshi"),
+                             ("Our sims", to_moneyline(e.ours), "our sims")):
+        if line is not None:
+            chips.append(f'<span class="ed-line has-tip"{tip_attr(money_tip(line, who, src))}><small>{label}</small>'
+                         f'{american(line)}</span>')
+    extra = []
+    if g.spread:
+        extra.append(f'<span class="has-tip"{tip_attr(spread_tip(g.spread))}>Spread {html.escape(g.spread)}</span>')
+    if g.total:
+        extra.append(f'<span class="has-tip"{tip_attr(total_tip(g.total))}>{html.escape(g.total)}</span>')
+    out = f'<div class="ed-lines">{"".join(chips)}</div>' if chips else ""
+    if extra:
+        out += f'<div class="lv-foot ed-extra">{" · ".join(extra)}</div>'
+    return out
+
+
 def edge_card(e: bestbets.Edge, stake: float) -> str:
     """One pick, said plainly: how our simulations track with Kalshi, and what your stake gets back."""
     g, s = e.game, e.side
@@ -538,7 +646,7 @@ def edge_card(e: bestbets.Edge, stake: float) -> str:
             f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
             f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
             f'<span class="ed-big">{e.ours * 100:.0f}%</span>; Kalshi has {e.kalshi * 100:.0f}%.</p>'
-            f'{sim_bars(e.ours, e.kalshi)}'
+            f'{sim_bars(e.ours, e.kalshi)}{edge_lines(e)}'
             f'<div class="bb-how">{pay}</div>'
             f'<div class="lv-foot">vs {html.escape(other.name)} · {html.escape(s.record)} vs {html.escape(other.record)}'
             f' · tap for the game page</div></div></a>')

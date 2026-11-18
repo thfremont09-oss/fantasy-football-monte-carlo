@@ -362,3 +362,6 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
 * **Moneylines everywhere on Live Odds:** DraftKings' line, plus Kalshi's and our own win chances turned into
   moneylines (60% = -150, 40% = +150), with the win chance underneath, a one-line meaning for a $10 bet on each
   card ("NY -199: bet $19.90 to win $10 · TOR +199: bet $10 to win $19.90") and a short explainer at the top.
+* **Hover any line** (moneylines on Live Odds, the game page and Best Bets, plus spreads and over/unders) for a
+  popup saying what it means in money for a $10 bet: what you'd win, what you'd get back, and what you'd lose.
+  Best Bets cards show the pick's moneyline on DraftKings, on Kalshi and from our sims.

@@ -396,3 +396,16 @@ def nfl_record(weeks: int = 3, cache_dir=".ffmc_cache", sims: int = 50_000) -> l
             continue
         out.append(NFLWeek(w, bt.predicted_total, bt.projection_total, bt.best_total))
     return out
+
+
+def top_calls(rec: BetsRecord, n: int = 10) -> tuple[list[GradedPick], list[dt.date]]:
+    """Our ``n`` strongest Best Bets calls (biggest gap over Kalshi, ranked before the games) from the most recent
+    day with finished picks, adding earlier days until there are ``n``."""
+    pool: list[GradedPick] = []
+    used: list[dt.date] = []
+    for day in sorted({p.day for p in rec.picks}, reverse=True):
+        pool += [p for p in rec.picks if p.day == day]
+        used.append(day)
+        if len(pool) >= n:
+            break
+    return sorted(pool, key=lambda p: -(p.ours - p.ask))[:n], sorted(used)

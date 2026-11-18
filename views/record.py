@@ -92,7 +92,23 @@ if f:
     cards.append(("#d0021b", "#f1", "F1 Fantasy", pct(top.ours / top.best),
                   f"of the perfect team at the {top.name.replace(' Grand Prix', ' GP')}; {pct(avg)} on average "
                   f"over {len(f)} races"))
-if b.picks:
+top10, top_days = record.top_calls(b)
+
+
+def span(days) -> str:
+    if not days:
+        return ""
+    a, z = days[0], days[-1]
+    return f"{a:%b} {a.day}" if a == z else f"{a:%b} {a.day}–{z.day}" if a.month == z.month else f"{a:%b %d}–{z:%b %d}"
+
+
+if top10:
+    won = sum(p.won for p in top10)
+    exp = sum(p.kalshi for p in top10)
+    cards.append(("#5b3cc4", "#top10", "Best Bets · top calls", f"{won} of {len(top10)}",
+                  f"of our strongest calls won ({span(top_days)})"
+                  + (f", more than Kalshi's prices expected ({exp:.1f})" if won > exp else "")))
+if b.picks and not top10:
     big = max(b.picks, key=lambda p: p.profit)
     matched = b.hits >= b.expected_by_kalshi - 0.5          # only claim it when it's true
     name = big.pick.split()[-1] if len(big.pick) > 18 else big.pick
@@ -197,6 +213,25 @@ st.markdown('<p class="rec-how">For every finished game of the last week: each t
             'a million times, and we keep the teams it rated higher than Kalshi (up to 12 a day, biggest gap '
             'first), exactly as the Best Bets page does. Then each pick is graded on the final score, with the '
             'real Kalshi payout for a $10 bet (whole contracts, fee included).</p>', unsafe_allow_html=True)
+if top10:
+    won = sum(p.won for p in top10)
+    exp = sum(p.kalshi for p in top10)
+    prof = sum(p.profit for p in top10)
+    st.markdown('<div id="top10"></div>', unsafe_allow_html=True)
+    st.subheader(f"Our top {len(top10)} calls · {span(top_days)}")
+    st.markdown(f'<p class="rec-say">The {len(top10)} picks our sims rated furthest above Kalshi\'s price, ranked '
+                f'before the games. <b>{won} of {len(top10)} won</b>'
+                + (f', more than the {exp:.1f} Kalshi\'s prices expected' if won > exp
+                   else f' (Kalshi\'s prices expected {exp:.1f})')
+                + f'. At $10 each: {"+" if prof >= 0 else "−"}${abs(prof):,.2f}.</p>', unsafe_allow_html=True)
+    st.dataframe(pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
+                                "vs": p.opponent, "Our sims": p.ours * 100, "Kalshi": p.kalshi * 100,
+                                "Result": "Won" if p.won else "Lost", "Profit ($10)": p.profit, "Final": p.score}
+                               for p in top10]), hide_index=True, width="stretch", column_config={
+        "Our sims": st.column_config.NumberColumn(format="%.0f%%"),
+        "Kalshi": st.column_config.NumberColumn(format="%.0f%%"),
+        "Profit ($10)": st.column_config.NumberColumn(format="$%.2f")})
+    st.subheader("All picks this week")
 if not b.picks:
     st.info("No picks to grade yet this week.")
 else:

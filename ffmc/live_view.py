@@ -210,7 +210,7 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .lv-bar b {{ display: block; height: 100%; }}
 .lv-foot {{ font-size: .74rem; color: #6b7889; margin-top: .3rem; }}
 .lv-more {{ font-size: .74rem; color: {COLOR}; font-weight: 600; margin-top: .35rem; text-align: right; }}
-.lv-count {{ font-family: "Barlow Condensed", sans-serif; font-size: 1.35rem; font-weight: 700; text-transform: uppercase;
+.lv-count {{ font-family: "Archivo", sans-serif; font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em;
   margin: .6rem 0 .1rem; color: #14202e; }}
 /* detail view */
 .gd-head {{ background: #fff; border: 1px solid #dfe3e8; border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1rem; }}

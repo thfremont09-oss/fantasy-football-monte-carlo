@@ -11,9 +11,9 @@ showWidgetBorder = true
 baseRadius = "small"
 baseFontSize = 15
 font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
-headingFont = "Barlow Condensed:https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap"
+headingFont = "Archivo:https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap"
 codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
-headingFontWeights = [700, 700, 600]
+headingFontWeights = [800, 800, 700]
 headingFontSizes = ["2.4rem", "1.75rem", "1.3rem"]
 
 [theme.light]

@@ -4,7 +4,7 @@ import streamlit as st
 
 from ffmc.ui import APP_VERSION, apply_site_css, theme_button
 
-st.set_page_config(page_title="Monte Carlo Sports Lab", page_icon=":material/query_stats:", layout="wide")
+st.set_page_config(page_title="MC Sports Lab", page_icon=":material/query_stats:", layout="wide")
 
 home = st.Page("views/home.py", title="Home", icon=":material/home:", default=True)
 football = st.Page("views/football.py", title="NFL Fantasy Lineups", icon=":material/sports_football:",
@@ -30,7 +30,7 @@ with st.container(key="site_header"):
     with theme, st.container(key="theme_col"):
         theme_button([p.url_path for p in PAGES], page.url_path)
     with brand, st.container(key="brand"):
-        st.page_link(home, label="Monte Carlo Sports Lab")
+        st.page_link(home, label="Sports Lab")
     # Desktop: plain links across the header. Phones: a menu button instead (CSS picks one).
     with nav, st.container(key="nav_col"), st.container(key="nav_inline", horizontal=True):
         for p in PAGES[1:]:

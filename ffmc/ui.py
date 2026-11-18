@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-18a"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-18b"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -39,6 +39,10 @@ SPORTS = {
 
 SITE_CSS = f"""
 <style>
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap");
+/* ---------- colours shared by custom pieces (switched for dark mode below) ---------- */
+:root {{ --ink: #111827; --sub: #374151; --muted: #6b7280; --line: #e5e7eb; --card: #ffffff; --soft: #f5f6f8;
+  --accent: #d6232a; }}
 /* ---------- frame ---------- */
 .block-container {{ max-width: 1160px; padding-top: 0 !important; }}
 [data-testid="stDecoration"] {{ display: none; }}
@@ -73,8 +77,13 @@ a, button {{ touch-action: manipulation; }}
 .st-key-site_header [data-testid="stColumn"]:last-child {{ flex: 0 0 auto !important; width: auto !important; }}
 .st-key-brand a[data-testid="stPageLink-NavLink"] > span:first-child {{ display: none; }}
 .st-key-brand a[data-testid="stPageLink-NavLink"] {{ padding-left: 0; background: none !important; }}
-.st-key-brand p {{ color: #fff !important; font-family: "Barlow Condensed", sans-serif !important;
-  font-size: 1.55rem !important; font-weight: 700 !important; letter-spacing: .02em; text-transform: uppercase; }}
+/* wordmark: a slanted red "MC" badge, then "Sports Lab" */
+.st-key-brand p {{ color: #fff !important; font-family: "Archivo", sans-serif !important;
+  font-size: 1.45rem !important; font-weight: 800 !important; letter-spacing: -.015em; display: flex !important;
+  align-items: center; gap: .45rem; }}
+.st-key-brand p::before {{ content: "MC"; display: inline-block; background: var(--accent); color: #fff;
+  font-weight: 900; font-style: italic; font-size: 1.05rem; letter-spacing: 0; padding: .12rem .45rem .1rem .38rem;
+  transform: skewX(-12deg); border-radius: 2px; }}
 .brand-dot {{ color: #f2b134; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}
@@ -174,8 +183,7 @@ h3 {{ margin-top: .3rem !important; }}
 .st-key-settings [data-testid="stPills"] button p {{ font-size: .98rem; font-weight: 600; }}
 
 /* ---------- type ---------- */
-h1, h2, h3, .banner h1 {{ font-family: "Barlow Condensed", sans-serif !important; letter-spacing: .01em; }}
-h2 {{ text-transform: uppercase; }}
+h1, h2, h3, .banner h1 {{ font-family: "Archivo", sans-serif !important; letter-spacing: -.01em; font-weight: 800 !important; }}
 [data-testid="stMetricValue"] {{ font-family: "Barlow Condensed", sans-serif; font-weight: 600; }}
 .eyebrow {{ text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; font-weight: 700;
   color: #4a5a6c; margin: 0 0 .2rem 0; }}
@@ -186,11 +194,11 @@ p.lead {{ font-size: 1.1rem; line-height: 1.6; color: #3b4857; max-width: 64ch; 
 .phead {{ padding: .2rem 0 1.15rem; margin: 0 0 1.3rem; border-bottom: 1px solid {BORDER}; }}
 .ptag {{ display: flex; align-items: center; gap: .5rem; margin: 0 0 .35rem; font-size: .76rem; font-weight: 700;
   letter-spacing: .12em; text-transform: uppercase; color: var(--c); }}
-.ptag i {{ width: 10px; height: 10px; background: var(--c); display: inline-block; }}
+.ptag i {{ width: 10px; height: 3px; background: var(--c); display: inline-block; }}
 .phead h1 {{ font-size: clamp(2.1rem, 5vw, 3.2rem) !important; line-height: 1 !important; margin: 0 0 .55rem !important;
-  padding: 0 !important; font-weight: 700; text-transform: uppercase; color: {INK}; letter-spacing: .005em; }}
-.phead .dek {{ font-size: 1.06rem; line-height: 1.55; color: #3b4857; max-width: 70ch; margin: 0; }}
-.pmeta {{ margin: .6rem 0 0; font-size: .86rem; font-weight: 600; color: #5b6878; }}
+  padding: 0 !important; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }}
+.phead .dek {{ font-size: 1.06rem; line-height: 1.55; color: var(--sub); max-width: 70ch; margin: 0; }}
+.pmeta {{ margin: .6rem 0 0; font-size: .86rem; font-weight: 600; color: var(--muted); }}
 .pmeta span {{ color: #b3bcc7; margin: 0 .2rem; }}
 .banner {{ border-radius: 6px; padding: 1.7rem 1.9rem 1.6rem; color: #fff; margin: 0 0 1.4rem 0;
   position: relative; overflow: hidden; }}
@@ -285,15 +293,9 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b
 .bb-pos { color: #4cc26f !important; } .bb-neg { color: #ff6b6b !important; }
 div[style*="background:#e3e7ee"] { background: #263241 !important; }
 .ffmc-wl-row { color: #dbe3ec; }
-.ticker { background: #151f2b !important; border-color: #2a3644 !important; } .ticker a { border-color: #222e3c !important; }
-.ticker a:hover { background: #1c2836 !important; }
-.sec { color: #f3f6f9 !important; border-color: #9fb0c3 !important; }
-.lead h2, .story h3, .side .heads a, .rail a.tool, .rail .intro b { color: #f3f6f9 !important; }
-.lead p, .rail .intro { color: #b8c4d2 !important; } .meta { color: #8d9cad !important; }
-.side .heads li, .rail a.tool { border-color: #222e3c !important; }
-.lead .img, .story .img { background-color: #1c2836 !important; }
-.lab { background: #121b26 !important; border-color: #2a3644 !important; border-top-color: #e0533f !important; }
-.lab .sec, .lab a { color: #ff7a66 !important; } .lab .take { border-color: #222e3c !important; color: #dbe3ec; }
+:root { --ink: #f3f4f6; --sub: #d1d5db; --muted: #9ca3af; --line: #2a3644; --card: #151f2b; --soft: #121b26;
+  --accent: #ff4d55; }
+
 .f1-card { background: #151f2b !important; border-color: #2a3644 !important; } .f1-team, .f1-nums small { color: #9fb0c3 !important; }
 .f1-card .f1-pic { background-color: #1c2836 !important; }
 """

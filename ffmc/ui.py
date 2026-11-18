@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-18d"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-18e"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -90,7 +90,7 @@ a, button {{ touch-action: manipulation; }}
 /* room for the slanted badge's corner, so it isn't clipped on the left */
 .st-key-brand p {{ padding-left: 5px !important; margin-left: -5px !important; }}
 /* the wordmark is the home button: a small house icon after it says so at all times; the hairline underline
-   slides in on hover and stays put while you're on the home page */
+   slides in only while you hover */
 .st-key-brand a[data-testid="stPageLink-NavLink"] {{ cursor: pointer; }}
 .st-key-brand p::after {{ content: "home"; font-family: "Material Symbols Rounded"; font-weight: 400;
   font-style: normal; font-size: 1.15rem; line-height: 1; letter-spacing: 0; color: rgba(255,255,255,.42);
@@ -98,7 +98,6 @@ a, button {{ touch-action: manipulation; }}
 .st-key-brand p {{ background-image: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55));
   background-repeat: no-repeat; background-size: 0 1px; background-position: {BRAND_TEXT_X} 92%;
   transition: background-size .25s ease; }}
-.st-key-brand_home p {{ background-size: {BRAND_TEXT_W} 1px; background-image: linear-gradient(#f2b134, #f2b134); }}
 @media (hover: hover) {{
   .st-key-brand a:hover p {{ background-size: {BRAND_TEXT_W} 1px; }}
   .st-key-brand a:hover p::after {{ color: #fff; }}

@@ -240,6 +240,16 @@ DRS Boost (2x, or 3x with the Extra DRS chip) on one driver.
   (Limitless chip), most points / safe floor / big ceiling, must-haves and
   drivers to avoid. 1,000,000 simulated weekends take about 10 seconds.
 
+## Front page and How it works
+
+* `views/home.py` is a sports front page: a **scores ticker** (live, upcoming and final games; tap one for its
+  game page), **Top Stories** (lead story with photo, a grid of stories and a **Top Headlines** list, from ESPN's
+  public news feeds across NFL, NBA, NHL, MLB, college, Premier League, Champions League and F1; `ffmc/news.py`),
+  **From the Lab** (where our Monte Carlo disagrees most with Kalshi today, and its surest pick, using teams
+  with 8+ games played), and the tools.
+* `views/method.py` (**How it works** in the header) holds the plain-English explanation, simulation counts,
+  inputs, the simplified and real code, and the track record.
+
 ## Parlay Lab
 
 `views/parlays.py` (UI) and `ffmc/parlay.py` (engine) find the best parlays for

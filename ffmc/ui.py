@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-16e"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-18a"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -25,6 +25,7 @@ SPORTS = {
     "f1": {"label": "Formula 1", "color": "#d0021b", "dark": "#5c000b",
            # chequered flag
            "texture": "repeating-conic-gradient(rgba(255,255,255,.07) 0 25%, transparent 0 50%) 0 0 / 26px 26px"},
+    "lab": {"label": "The Lab", "color": "#c0392b", "dark": "#7a1f16", "texture": "none"},
     "bets": {"label": "DraftKings + Kalshi", "color": "#5b3cc4", "dark": "#24165f",
              # ticker-tape diagonals
              "texture": "repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0 2px, transparent 2px 26px)"},
@@ -81,6 +82,10 @@ a, button {{ touch-action: manipulation; }}
   border-bottom: 3px solid transparent; border-top: 3px solid transparent; padding: 0 0.8rem;
   height: 76px; min-height: 76px; display: flex; align-items: center; }}   /* tap area = the full height of the navy bar */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{ color: #c9d3df !important; font-weight: 600; font-size: .95rem; }}
+/* text-only links, like a news site's section nav (and room for every section) */
+.st-key-nav_inline a[data-testid="stPageLink-NavLink"] [data-testid="stIconMaterial"],
+.st-key-nav_inline a[data-testid="stPageLink-NavLink"] > span:first-child:not(:only-child) {{ display: none !important; }}
+@media (max-width: 1250px) {{ .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ padding: 0 .55rem; }} }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] span {{ color: #c9d3df !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] {{ border-bottom-color: #f2b134 !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] p {{ color: #fff !important; }}
@@ -280,6 +285,15 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score, .lv-count, .gd-score, .gd-team b
 .bb-pos { color: #4cc26f !important; } .bb-neg { color: #ff6b6b !important; }
 div[style*="background:#e3e7ee"] { background: #263241 !important; }
 .ffmc-wl-row { color: #dbe3ec; }
+.ticker { background: #151f2b !important; border-color: #2a3644 !important; } .ticker a { border-color: #222e3c !important; }
+.ticker a:hover { background: #1c2836 !important; }
+.sec { color: #f3f6f9 !important; border-color: #9fb0c3 !important; }
+.lead h2, .story h3, .side .heads a, .rail a.tool, .rail .intro b { color: #f3f6f9 !important; }
+.lead p, .rail .intro { color: #b8c4d2 !important; } .meta { color: #8d9cad !important; }
+.side .heads li, .rail a.tool { border-color: #222e3c !important; }
+.lead .img, .story .img { background-color: #1c2836 !important; }
+.lab { background: #121b26 !important; border-color: #2a3644 !important; border-top-color: #e0533f !important; }
+.lab .sec, .lab a { color: #ff7a66 !important; } .lab .take { border-color: #222e3c !important; color: #dbe3ec; }
 .f1-card { background: #151f2b !important; border-color: #2a3644 !important; } .f1-team, .f1-nums small { color: #9fb0c3 !important; }
 .f1-card .f1-pic { background-color: #1c2836 !important; }
 """

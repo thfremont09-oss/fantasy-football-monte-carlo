@@ -1,67 +1,227 @@
-"""Home page: what the simulators do, in plain English, with the core code."""
+"""Home page: a sports front page. Scores ticker, top stories, our model's takes, and the tools.
+
+How the simulators work (and their code) lives on its own page: views/method.py.
+"""
 
 from __future__ import annotations
 
-import inspect
+import html
+from urllib.parse import quote
 
 import streamlit as st
 
-from ffmc import f1, fpl, madness, parlay, simulate
-from ffmc.ui import APP_VERSION, NAVY, SPORTS, card_top
+from ffmc import news, winprob
+from ffmc.live_view import ET, board, ours_for
+from ffmc.ui import APP_VERSION, card_top
 
 FOOTBALL, MADNESS, FPL = "views/football.py", "views/march_madness.py", "views/fpl.py"
 F1 = "views/f1.py"
 PARLAYS, NICHE, LIVE = "views/parlays.py", "views/niche.py", "views/live.py"
 BETS = "views/bets.py"
 
-
-def eyebrow(text: str) -> None:
-    st.markdown(f'<p class="eyebrow">{text}</p>', unsafe_allow_html=True)
+esc = html.escape
 
 
-def real_code(*fns) -> None:
-    with st.expander("See the actual code"):
-        for fn in fns:
-            st.code(inspect.getsource(fn).rstrip(), language="python")
+@st.cache_data(ttl=600, show_spinner=False)
+def stories() -> list[news.Story]:
+    return news.lead_order(news.top_stories())
 
 
-# --------------------------------------------------------------------- hero
-st.markdown(f"""
+# ----------------------------------------------------------------- styles
+st.markdown("""
 <style>
-.hero {{ padding: .6rem 0 1.6rem; margin-bottom: 1.6rem; border-bottom: 1px solid #dfe3e8; }}
-.hero .kicker {{ font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #c0392b;
-  margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }}
-.hero .kicker i {{ width: 10px; height: 10px; background: #c0392b; display: inline-block; }}
-.hero h1 {{ font-size: clamp(2.6rem, 7vw, 4.6rem) !important; line-height: .95 !important; margin: 0 0 .9rem !important;
-  padding: 0 !important; text-transform: uppercase; font-weight: 700; color: {NAVY}; max-width: 15ch; }}
-.hero .dek {{ font-size: 1.15rem; line-height: 1.6; color: #3b4857; max-width: 62ch; margin: 0; }}
-.hero .facts {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 1.6rem;
-  border-top: 1px solid #dfe3e8; }}
-.hero .facts div {{ padding: .9rem 1rem .2rem; border-left: 1px solid #dfe3e8; }}
-.hero .facts div:first-child {{ border-left: none; padding-left: 0; }}
-.hero .facts b {{ display: block; font-family: "Barlow Condensed", sans-serif; font-size: 2.2rem; line-height: 1; }}
-.hero .facts small {{ color: #5b6878; font-size: .82rem; }}
-@media (max-width: 640px) {{ .hero .facts {{ grid-template-columns: 1fr 1fr; }}
-  .hero .facts div:nth-child(3) {{ border-left: none; padding-left: 0; }} }}
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap');
+.serif { font-family: "Source Serif 4", Georgia, serif; }
+
+/* scores ticker */
+.ticker { display: flex; gap: 0; overflow-x: auto; margin: -1rem 0 1.4rem; border: 1px solid #dfe3e8;
+  border-radius: 6px; background: #fff; scrollbar-width: thin; }
+.ticker a { flex: 0 0 auto; min-width: 150px; padding: .45rem .75rem .5rem; border-right: 1px solid #edf0f3;
+  text-decoration: none !important; color: inherit !important; }
+.ticker a:hover { background: #f6f8fa; }
+.tk-top { display: flex; justify-content: space-between; gap: .5rem; font-size: .66rem; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: #6b7889; margin-bottom: .15rem; }
+.tk-top .live { color: #d93025; }
+.tk-row { display: flex; justify-content: space-between; gap: .8rem; font-size: .84rem; line-height: 1.35; }
+.tk-row b { font-variant-numeric: tabular-nums; }
+.tk-row.win span { font-weight: 700; }
+
+/* front page: rail / main / side */
+.front { display: grid; grid-template-columns: 200px minmax(0, 1fr) 300px; gap: 1.6rem; align-items: start; }
+@media (max-width: 1100px) { .front { grid-template-columns: minmax(0, 1fr) 280px; } .rail { display: none; } }
+@media (max-width: 760px) { .front { grid-template-columns: 1fr; } }
+.sec { font-family: "Barlow Condensed", sans-serif; font-size: 1.15rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; border-bottom: 3px solid #14202e; padding-bottom: .25rem; margin: 0 0 .7rem; }
+
+.rail .intro { font-size: .88rem; line-height: 1.5; color: #3b4857; margin: 0 0 1rem; }
+.rail .intro b { display: block; font-family: "Barlow Condensed", sans-serif; font-size: 1.35rem; line-height: 1.05;
+  text-transform: uppercase; color: #14202e; margin-bottom: .35rem; }
+.rail a.tool { display: flex; align-items: center; gap: .55rem; padding: .5rem .2rem; border-bottom: 1px solid #edf0f3;
+  font-weight: 600; font-size: .92rem; text-decoration: none !important; color: #14202e !important; }
+.rail a.tool i { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 2px; }
+.rail a.tool:hover { color: #1d5fa8 !important; }
+
+.lead { display: block; text-decoration: none !important; color: inherit !important; margin-bottom: 1.2rem; }
+.lead .img { aspect-ratio: 16 / 9; background: #e7ebf0 center / cover no-repeat; border-radius: 4px; }
+.tag { display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  margin: .7rem 0 .25rem; }
+.lead h2 { font-family: "Source Serif 4", Georgia, serif !important; font-size: clamp(1.6rem, 3.2vw, 2.25rem) !important;
+  line-height: 1.15 !important; text-transform: none !important; letter-spacing: 0 !important; margin: 0 0 .4rem !important;
+  padding: 0 !important; font-weight: 700; color: #14202e; }
+.lead p { font-size: 1.02rem; line-height: 1.55; color: #3b4857; margin: 0 0 .35rem; }
+.meta { font-size: .78rem; color: #6b7889; }
+.lead:hover h2 { text-decoration: underline; text-decoration-thickness: 2px; }
+
+.more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem 1.2rem; }
+@media (max-width: 520px) { .more { grid-template-columns: 1fr; } }
+.story { display: block; text-decoration: none !important; color: inherit !important; }
+.story .img { aspect-ratio: 16 / 9; background: #e7ebf0 center / cover no-repeat; border-radius: 4px; }
+.story .tag { margin-top: .5rem; }
+.story h3 { font-family: "Source Serif 4", Georgia, serif !important; font-size: 1.12rem !important; line-height: 1.25 !important;
+  margin: 0 0 .25rem !important; padding: 0 !important; font-weight: 700; color: #14202e; }
+.story:hover h3 { text-decoration: underline; }
+
+.side .heads { list-style: none; margin: 0 0 1.4rem; padding: 0; }
+.side .heads li { border-bottom: 1px solid #edf0f3; padding: .55rem 0; }
+.side .heads a { display: block; text-decoration: none !important; color: #14202e !important; font-weight: 600;
+  font-size: .93rem; line-height: 1.35; }
+.side .heads a:hover { color: #1d5fa8 !important; }
+.side .heads small { display: block; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  margin-bottom: .1rem; }
+.lab { background: #f7f8fa; border: 1px solid #dfe3e8; border-top: 4px solid #c0392b; border-radius: 6px;
+  padding: .85rem 1rem .9rem; }
+.lab .sec { border: none; padding: 0; margin-bottom: .2rem; color: #c0392b; }
+.lab .take { padding: .55rem 0; border-bottom: 1px solid #e3e7ec; font-size: .9rem; line-height: 1.45; }
+.lab .take:last-of-type { border-bottom: none; }
+.lab .take b.num { font-family: "Barlow Condensed", sans-serif; font-size: 1.2rem; }
+.lab a { font-weight: 700; color: #c0392b !important; text-decoration: none !important; }
+.lab .go { display: flex; gap: 1rem; margin-top: .4rem; font-size: .86rem; }
 </style>
-<div class="hero">
-  <p class="kicker"><i></i>Simulation-based sports analytics</p>
-  <h1>Every game, played 1,000,000 times.</h1>
-  <p class="dek">Projections give you one number. These tools play the week, the race weekend or the whole
-  tournament out a million times with real data, then show you which choice comes out ahead most often.</p>
-  <div class="facts">
-    <div><b>8</b><small>tools</small></div>
-    <div><b>80,000+</b><small>markets scanned</small></div>
-    <div><b>1,000,000</b><small>simulations per run</small></div>
-    <div><b>Live</b><small>data, refreshed all day</small></div>
-  </div>
-</div>
 """, unsafe_allow_html=True)
 
+
+# ----------------------------------------------------------------- ticker
+def ticker() -> str:
+    try:
+        games, _ = board()
+    except Exception:          # the front page should never fail because of the scores strip
+        return ""
+    order = [g for g in games if g.state == "in"] + [g for g in games if g.state == "pre"][:14] + \
+            [g for g in games if g.state == "post"][:10]
+    boxes = []
+    for g in order[:30]:
+        if g.sport == "Tennis" or len(g.sides) != 2:
+            continue
+        if g.state == "in":
+            status = f'<span class="live">● {esc(g.detail)}</span>'
+        elif g.state == "post":
+            status = "<span>Final</span>"
+        else:
+            t = g.start.astimezone(ET)
+            status = f"<span>{t:%a} {t:%I:%M %p}".replace(" 0", " ") + "</span>"
+        rows = "".join(
+            f'<div class="tk-row{" win" if s.winner else ""}"><span>{esc(s.short or s.name)}</span>'
+            f'<b>{esc(s.score) if g.state != "pre" else ""}</b></div>' for s in g.sides)
+        boxes.append(f'<a href="live?game={quote(g.key)}" target="_self"><div class="tk-top"><span>{esc(g.league)}</span>'
+                     f'{status}</div>{rows}</a>')
+    return f'<div class="ticker">{"".join(boxes)}</div>' if boxes else ""
+
+
+# --------------------------------------------------------------- the lab
+def lab_takes() -> str:
+    """Our model's takes on today's games: where it disagrees most with Kalshi, and its surest pick."""
+    try:
+        games, _ = board()
+    except Exception:
+        return ""
+    gaps, sure = [], []
+    for g in games:
+        if g.state != "pre" or len(g.sides) != 2 or g.sport in ("Tennis", "MMA"):
+            continue
+        mine = ours_for(g)
+        if not mine:
+            continue
+        # Only teams with a real track record: early-season records say too little to argue with the market.
+        played = [(winprob._share(x.record) or (0, 0))[1] for x in g.sides]
+        if min(played) < 8:
+            continue
+        for s, p in ((g.sides[0], mine.away), (g.sides[1], mine.home)):
+            if s.kalshi is not None and 0.08 <= s.kalshi <= 0.92:
+                gaps.append((p - s.kalshi, s, p, g))
+            sure.append((p, s, g))
+    takes = []
+    if gaps:
+        gap, s, p, g = max(gaps, key=lambda x: x[0])
+        takes.append(f'<div class="take">Our model likes <b>{esc(s.name)}</b> more than the market does: '
+                     f'<b class="num">{p * 100:.0f}%</b> vs Kalshi\'s {s.kalshi * 100:.0f}% '
+                     f'(<a href="live?game={quote(g.key)}" target="_self">{esc(g.league)}</a>).</div>')
+        first = g
+        others = [x for x in gaps if x[3].key != first.key] or gaps      # a different game from the first take
+        gap, s, p, g = min(others, key=lambda x: x[0])
+        takes.append(f'<div class="take">Most skeptical of <b>{esc(s.name)}</b>: we say '
+                     f'<b class="num">{p * 100:.0f}%</b>, Kalshi says {s.kalshi * 100:.0f}% '
+                     f'(<a href="live?game={quote(g.key)}" target="_self">{esc(g.league)}</a>).</div>')
+    if sure:
+        p, s, g = max(sure, key=lambda x: x[0])
+        takes.append(f'<div class="take">Surest pick on the board: <b>{esc(s.name)}</b> wins in '
+                     f'<b class="num">{p * 100:.0f}%</b> of 1,000,000 simulated games.</div>')
+    if not takes:
+        takes.append('<div class="take">No games to simulate right now. Check back closer to game time.</div>')
+    return ('<div class="lab"><div class="sec">From the Lab</div>' + "".join(takes) +
+            '<div class="go"><a href="bets" target="_self">Best bets now →</a>'
+            '<a href="live" target="_self">All live odds →</a></div></div>')
+
+
+# ------------------------------------------------------------ front page
+def front(all_stories: list[news.Story]) -> str:
+    tools = [("#1f6feb", "Live Odds", "live"), ("#5b3cc4", "Best Bets Now", "bets"), ("#2e7d3a", "NFL Lineups", "football"),
+             ("#d0021b", "F1 Fantasy", "f1"), ("#0f7a86", "Fantasy Premier League", "fpl"),
+             ("#c75a1c", "March Madness", "march-madness"), ("#5b3cc4", "Parlay Lab", "parlays"),
+             ("#a3243f", "Niche Sports", "niche"), ("#c0392b", "How it works", "how-it-works")]
+    rail = ('<div class="rail"><p class="intro"><b>Every game, played a million times.</b>Real data in, a million '
+            'simulated games out, and the choice that comes out ahead most often.</p><div class="sec">Tools</div>'
+            + "".join(f'<a class="tool" href="{u}" target="_self"><i style="background:{c}"></i>{esc(n)}</a>'
+                      for c, n, u in tools) + "</div>")
+
+    def img(s: news.Story) -> str:
+        return f'<div class="img" style="background-image:url(\'{esc(s.image)}\')"></div>' if s.image else ""
+
+    def tag(s: news.Story) -> str:
+        return f'<span class="tag" style="color:{s.color}">{esc(s.league)}</span>'
+
+    def meta(s: news.Story) -> str:
+        return f'<div class="meta">{esc(s.byline) + " · " if s.byline else ""}{news.ago(s.published)}</div>'
+
+    if not all_stories:
+        main = '<div class="main"><div class="sec">Top Stories</div><p>Stories couldn\'t load right now.</p></div>'
+        side_heads = ""
+    else:
+        lead, rest = all_stories[0], all_stories[1:]
+        cards = [s for s in rest if s.image][:6]
+        heads = [s for s in rest if s not in cards][:10]
+        main = ('<div class="main"><div class="sec">Top Stories</div>'
+                f'<a class="lead" href="{esc(lead.url)}" target="_blank" rel="noopener">{img(lead)}{tag(lead)}'
+                f'<h2>{esc(lead.headline)}</h2><p>{esc(lead.dek)}</p>{meta(lead)}</a>'
+                '<div class="more">' + "".join(
+                    f'<a class="story" href="{esc(s.url)}" target="_blank" rel="noopener">{img(s)}{tag(s)}'
+                    f'<h3>{esc(s.headline)}</h3>{meta(s)}</a>' for s in cards) + "</div></div>")
+        side_heads = ('<div class="sec">Top Headlines</div><ul class="heads">' + "".join(
+            f'<li><a href="{esc(s.url)}" target="_blank" rel="noopener"><small style="color:{s.color}">'
+            f'{esc(s.league)} · {news.ago(s.published)}</small>{esc(s.headline)}</a></li>' for s in heads) + "</ul>")
+    side = f'<div class="side">{side_heads}{lab_takes()}</div>'
+    return f'<div class="front">{rail}{main}{side}</div>'
+
+
+st.markdown(ticker(), unsafe_allow_html=True)
+st.markdown(front(stories()), unsafe_allow_html=True)
+st.caption("Stories and photos from ESPN; tap a story to read it there.")
+
 # ------------------------------------------------------------------- tools
+st.write("")
+st.markdown('<div class="sec">Our tools</div>', unsafe_allow_html=True)
 cards = [
     ("live", "Live · Every league", "Live Odds", LIVE, "Open Live Odds",
-     "Scores for the top leagues worldwide with DraftKings and Kalshi odds side by side, live win chances, "
+     "Scores for the top leagues worldwide with DraftKings, Kalshi and our own Monte Carlo odds side by side, "
      "search, and a page for every game with stats and a live odds chart, updated every 15 seconds."),
     ("bets", "Kalshi + DraftKings", "Best Bets Now", BETS, "Open Best Bets",
      "The best win/lose bets on today's and tomorrow's games: each app's price checked against the other, "
@@ -94,206 +254,12 @@ for row in (cards[:4], cards[4:]):
             st.markdown(f'<p class="card-text">{text}</p>', unsafe_allow_html=True)
             with st.container(key=f"cardlink_{slug}"):
                 st.page_link(path, label=cta, icon=":material/arrow_forward:", width="stretch")
-
-# ------------------------------------------------------------ how it works
-st.write("")
-eyebrow("How it works")
-st.header("Three steps, every sport")
-steps = [
-    ("1. Build a picture", "Start from real data: projections, recent games, injuries, team strength. Turn it "
-                           "into a realistic range for each player or team, not just one number."),
-    ("2. Play it out", "Let the computer play the games a million times. Some runs a star has a huge day, "
-                       "some runs they're quiet, and some runs the underdog wins. Like real life."),
-    ("3. Count the wins", "Look at all those results and count. The lineup, bracket or captain that comes "
-                          "out on top most often is your best bet, and you see the odds behind it."),
-]
-st.markdown('<div class="grid">' + "".join(f'<div class="tile step"><b>{title}</b><p>{text}</p></div>'
-                                           for title, text in steps) + "</div>", unsafe_allow_html=True)
-
-# ------------------------------------------------------ how many simulations
-st.write("")
-eyebrow("Simulations")
-st.header("How many simulations?")
-st.write("Each run is random, so the odds wobble a little from one run to the next. The more times the "
-         "games are played, the less they wobble. Every tool now plays the games a million times, which makes "
-         "the odds rock-steady. A million games would fill gigabytes of memory, so they're played in batches "
-         "and only the running totals are kept.")
-
-
-def wobble(n: int) -> str:
-    return f"±{196 * (0.25 / n) ** 0.5:.1f}"      # 95% margin on a 50% chance, in percentage points
-
-
-sims = [("nfl", "NFL lineups", "weeks", "a few seconds"), ("ncaa", "March Madness", "tournaments", "about a second"),
-        ("epl", "Premier League", "gameweeks", "a minute or two"), ("f1", "F1 Fantasy", "race weekends", "about 10 seconds"),
-        ("bets", "Parlay Lab", "slates", "under a minute"), ("live", "Best Bets", "games per bet", "a few seconds")]
-st.markdown('<div class="grid g3">' + "".join(
-    f'<div class="tile" style="border-top:4px solid {SPORTS[sport]["color"]}">'
-    f'<p class="eyebrow" style="color:{SPORTS[sport]["color"]}">{name}</p><div class="big">1,000,000</div>'
-    f'<p>{unit} per run · takes {speed}</p>'
-    f'<p>A 50% chance comes out within <b>{wobble(1_000_000)} points</b>.</p></div>'
-    for sport, name, unit, speed in sims) + "</div>", unsafe_allow_html=True)
-st.caption("Want a faster answer? Pick fewer simulations under Simulation settings on each tool.")
-
-# -------------------------------------------------------------- what's used
-st.write("")
-eyebrow("The inputs")
-st.header("What each simulator looks at")
-inputs = {
-    "nfl": ["ESPN's projection for every player this week", "Points scored in each of the last 6 games",
-            "Injury report (questionable players sit out about 1 week in 5)", "Who plays who, so teammates and "
-            "opponents rise and fall together", "Your ESPN league's scoring and lineup rules (or ESPN's defaults)"],
-    "ncaa": ["The final score of every Division I game this season", "Whether each game was home, away or "
-             "neutral", "Last season's ratings, early in the year", "The official bracket and results once "
-             "the tournament starts"],
-    "epl": ["Every club's goals scored and conceded this season", "Each player's expected goals (xG) and "
-            "expected assists (xA) per 90 minutes", "How often each player starts, and their injury status",
-            "Saves, defensive actions and FPL's scoring rules", "Player prices and your budget (or none)",
-            "This gameweek's fixtures, including doubles and blanks"],
-    "f1": ["Official F1 Fantasy prices and every driver's fantasy points per race", "Grid, finish and "
-           "retirements in each driver's last 6 races", "Kalshi's odds for the race winner, podium, top 5 and top 10",
-           "F1 Fantasy's scoring: qualifying, race, overtakes, fastest lap, DNFs"],
-    "bets": ["DraftKings moneylines, spreads and totals for 24 leagues", "Every open Kalshi sports market: "
-             "winners, spreads, totals and player props", "Each price with the bookmaker's cut removed",
-             "Your risk, payout, number of legs, sports and bet types"],
-}
-st.markdown('<div class="grid">' + "".join(
-    f'<div class="tile" style="--c:{SPORTS[sport]["color"]}"><p class="eyebrow" style="color:{SPORTS[sport]["color"]}">'
-    f'{SPORTS[sport]["label"]}</p><ul>' + "".join(f"<li>{i}</li>" for i in items) + "</ul></div>"
-    for sport, items in inputs.items()) + "</div>", unsafe_allow_html=True)
-
-# --------------------------------------------------------------- the code
-st.write("")
-eyebrow("Under the hood")
-st.header("The idea, in a few lines of code")
-st.write("Simplified versions of what each simulator does, written to be read by anyone. "
-         "The real code is one click away under each one.")
-t_nfl, t_ncaa, t_epl, t_f1, t_bets = st.tabs(["NFL lineups", "March Madness", "Premier League", "F1 Fantasy",
-                                             "Parlay Lab"])
-
-with t_nfl:
-    st.code('''# Play this week 1,000,000 times
-for week in range(1_000_000):
-    for player in your_players:
-        # Start from the projection, then roll the dice:
-        # most weeks land near it, some are huge, some are duds.
-        points[player] = player.projection * random_good_or_bad_day()
-
-        # Teammates share luck: when a QB has a big day,
-        # their receivers usually do too.
-        points[player] *= team_luck[player.team]
-
-        # Listed as questionable? Some weeks they don't play.
-        if player.questionable and chance(20%):
-            points[player] = 0
-
-    # Which lineup would have scored the most this time?
-    remember(best_lineup(points))
-
-# Start the lineup that came out on top most often.''', language="python")
-    real_code(simulate.simulate, simulate.luck_to_points)
-
-with t_ncaa:
-    st.code('''# Step 1: rate every team from this season's scores.
-# "A beat B by 12" -> A is about 12 points better than B
-# (after allowing for home court). Repeat for thousands of games.
-ratings = rate_teams(every_score_this_season)
-
-# Step 2: play the whole tournament 1,000,000 times.
-for tournament in range(1_000_000):
-    teams_left = the_64_teams
-    while more_than_one(teams_left):
-        for team_a, team_b in this_rounds_games(teams_left):
-            # a team 11 points better wins about 84% of the time
-            chance_a_wins = win_chance(ratings[team_a] - ratings[team_b])
-            winner = team_a if random() < chance_a_wins else team_b
-        teams_left = this_rounds_winners
-    remember(champion = teams_left[0])
-
-# Title odds = how often each team ended up as champion.''', language="python")
-    real_code(madness.fit_ratings, madness.simulate_bracket)
-
-with t_epl:
-    st.code('''# Play this gameweek 1,000,000 times
-for gameweek in range(1_000_000):
-    for match in this_gameweeks_fixtures:
-        # How many goals? Depends on one side's attack vs. the other's defence.
-        home_goals = random_goals(expected = home_attack * away_defence)
-        away_goals = random_goals(expected = away_attack * home_defence)
-
-        # Who scored? Players with higher xG get more of the goals,
-        # but only if they're on the pitch that day.
-        for goal in home_goals:
-            scorer = pick_a_player(more_likely_if = high_xG)
-            points[scorer] += goal_points[scorer.position]   # 4, 5, 6 or 10
-
-        # Defenders and keepers get a clean sheet if the other side scored 0.
-        # Then: assists, saves, defensive actions, bonus for the top 3.
-
-    remember(best_xi(points), top_scorer(points))
-
-# Captain = the player who topped the XI most often.''', language="python")
-    real_code(fpl.simulate, fpl.player_points)
-
-with t_f1:
-    st.code('''# Each driver's pace: recent results blended with the betting market's odds.
-expected_finish = blend(last_6_races, kalshi_odds_for_this_race)
-
-# Play the race weekend 1,000,000 times
-for weekend in range(1_000_000):
-    for driver in grid:
-        # Everyone has good and bad weekends, plus extra luck on the day.
-        quali_pace[driver] = -expected_finish[driver] + weekend_luck + quali_luck
-        race_pace[driver]  = -expected_finish[driver] + weekend_luck + race_luck
-        if chance(driver.retirement_rate):
-            race_pace[driver] = DNF                     # -20 in F1 Fantasy
-
-    grid_order, race_order = sort(quali_pace), sort(race_pace)
-    # F1 Fantasy scoring: 10 for pole, 25 for a win, +1 per place gained,
-    # overtakes, fastest lap, Driver of the Day; teams score both cars.
-    remember(fantasy_points(grid_order, race_order))
-
-# Then check every team of 5 drivers + 2 constructors that fits the budget,
-# with the DRS Boost (2x) on its best driver, and keep the highest scorer.''', language="python")
-    real_code(f1.simulate_batch)
-
-with t_bets:
-    st.code('''# Step 1: every leg's real chance, with the bookmaker's cut taken out.
-# DraftKings -150 / +130 -> 58% / 42% after removing the cut.
-# If Kalshi lists the same game too, average the two.
-chances = fair_chance(every_draftkings_line + every_kalshi_market)
-
-# Step 2: play every game 1,000,000 times.
-for scenario in range(1_000):
-    # Our chances are estimates, so nudge each one a little per scenario.
-    nudged = wiggle(chances)
-    for slate in range(1_000):
-        won[leg] = random() < nudged[leg]        # for every leg at once
-
-# Step 3: score every parlay that fits your risk, payout and legs.
-for parlay in candidates(your_settings):
-    hit_rate = share_of_slates_where(all legs in parlay won)
-    value = hit_rate * parlay.payout - 1      # profit per $1, on average
-
-# Show the parlays with the best value (or best odds, or biggest payout).''', language="python")
-    real_code(parlay.simulate)
-
-# ------------------------------------------------------------ track record
-st.write("")
-eyebrow("Track record")
-st.header("How it has done")
-st.write("Each tool can be rerun on past weeks and tournaments using only what was known beforehand.")
-m1, m2, m3 = st.columns(3, gap="medium")
-m1.metric("NFL 2026, week 9: optimizer's lineup", "186.7 pts", "+8.2 vs. its own projection")
-m2.metric("Best lineup possible in hindsight", "260.9 pts")
-m2.caption("The optimizer's lineup captured 72% of it.")
-m3.metric("2026 March Madness bracket (ESPN scoring)", "≈1,000 / 1,920")
-m3.caption("Champion Michigan was its #2 title pick before the tournament.")
-st.caption("Single results, not long-run averages.")
+st.page_link("views/method.py", label="How the simulations work, with the code", icon=":material/menu_book:")
 
 # ------------------------------------------------------------------- footer
 st.divider()
-st.caption("Data: ESPN Fantasy (NFL), ESPN public scoreboards (college basketball and DraftKings odds), the official "
-           "Fantasy Premier League API, the official F1 Fantasy game, the Jolpica F1 database and Kalshi's public market data. Not affiliated with ESPN, DraftKings, Kalshi, "
-           "the NFL, the NCAA, the Premier League or Formula 1. For entertainment; no outcome is guaranteed. Betting is 21+; "
-           f"if gambling stops being fun, call 1-800-GAMBLER. Version {APP_VERSION}.")
+st.caption("Data: ESPN (news, scores, fantasy), DraftKings odds via ESPN, Kalshi's public market data, the official "
+           "Fantasy Premier League and F1 Fantasy games, Formula 1 images and the Jolpica F1 database. Not affiliated "
+           "with ESPN, DraftKings, Kalshi, the NFL, the NCAA, the Premier League or Formula 1. For entertainment; no "
+           "outcome is guaranteed. Betting is 21+; if gambling stops being fun, call 1-800-GAMBLER. "
+           f"Version {APP_VERSION}.")

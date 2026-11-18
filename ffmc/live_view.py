@@ -94,6 +94,27 @@ def pct(x: float | None) -> str:
     return "—" if x is None else f"{x * 100:.0f}%"
 
 
+def to_moneyline(p: float | None) -> int | None:
+    """A win chance as an American moneyline: 60% -> -150 (favourite), 40% -> +150 (underdog)."""
+    if p is None or not 0.005 < p < 0.995:
+        return None
+    return -round(100 * p / (1 - p)) if p >= 0.5 else round(100 * (1 - p) / p)
+
+
+def ml_meaning(name: str, line: int, stake: float = 10.0) -> str:
+    """'+287: bet $10 to win $28.70' / '-360: bet $36 to win $10' in plain words."""
+    if line > 0:
+        return f"{name} {american(line)}: bet ${stake:,.0f} to win ${stake * line / 100:,.2f}"
+    risk = stake * -line / 100
+    return f"{name} {american(line)}: bet ${risk:,.2f}".replace(".00", "") + f" to win ${stake:,.0f}"
+
+
+def ml_cell(p: float | None) -> str:
+    """Moneyline on top, the win chance small underneath."""
+    line = to_moneyline(p)
+    return "—" if line is None else f'{american(line)}<small class="lv-p">{p * 100:.0f}%</small>'
+
+
 def status_html(g: live.Game) -> str:
     if g.state == "in":
         return f'<span class="lv-live"><i></i>LIVE · {html.escape(g.detail)}</span>'
@@ -134,6 +155,13 @@ def result_chip(result: str) -> str:
     return f'<span class="wl wl-{kind}">{html.escape(result)}</span>'
 
 
+def sim_bars(ours: float, kalshi: float) -> str:
+    """Two bars: our simulated win chance and Kalshi's, so the gap is easy to see."""
+    return (f'<div class="ed-bars"><div><span>Our sims</span><i style="width:{ours * 100:.0f}%"></i>'
+            f'<b>{ours * 100:.0f}%</b></div><div class="k"><span>Kalshi</span><i style="width:{kalshi * 100:.0f}%"></i>'
+            f'<b>{kalshi * 100:.0f}%</b></div></div>')
+
+
 def sim_vs_kalshi(g: live.Game, mine: winprob.OwnOdds | None) -> str:
     """One plain sentence: how our simulation tracks with Kalshi for this game (empty if we can't compare)."""
     if not mine or len(g.sides) != 2:
@@ -153,6 +181,18 @@ def sim_vs_kalshi(g: live.Game, mine: winprob.OwnOdds | None) -> str:
             f'{s.kalshi * 100:.0f}% on Kalshi.</div>')
 
 
+def ml_explain(g: live.Game) -> str:
+    """What the moneylines mean for this game, for a $10 bet (DraftKings' line, or Kalshi's as a moneyline)."""
+    if g.state == "post" or len(g.sides) != 2:
+        return ""
+    parts = []
+    for s in g.sides:
+        line = s.dk if s.dk is not None else to_moneyline(s.kalshi)
+        if line is not None:
+            parts.append(ml_meaning(html.escape(s.short or s.name), line))
+    return f'<div class="lv-ml">{" · ".join(parts)}</div>' if parts else ""
+
+
 def card(g: live.Game, sched: bool = False) -> str:
     rows = []
     best = max(range(len(g.sides)), key=lambda i: g.sides[i].kalshi or 0) if g.kalshi_updated else None
@@ -164,14 +204,14 @@ def card(g: live.Game, sched: bool = False) -> str:
                if s.kalshi is not None else "")
         rec = f'<small>{html.escape(s.record)}</small>' if s.record else ""
         odds = ("" if g.state == "post" else f'<td class="lv-dk">{american(s.dk)}</td>'
-                f'<td class="lv-k{" lv-fav" if i == best else ""}">{pct(s.kalshi)}{bar}</td>'
-                f'<td class="lv-ours">{pct(ours[i] if i < 2 else None)}</td>')
+                f'<td class="lv-k{" lv-fav" if i == best else ""}">{ml_cell(s.kalshi)}{bar}</td>'
+                f'<td class="lv-ours">{ml_cell(ours[i] if i < 2 else None)}</td>')
         rows.append(f'<tr class="{win.strip()}"><td class="lv-team">{logo_html(s)}<span>{html.escape(s.name)}{rec}</span></td>'
                     f'<td class="lv-score">{html.escape(s.score) if g.state != "pre" else ""}</td>{odds}</tr>')
     if g.state != "post" and (g.draw_dk is not None or g.draw_kalshi is not None):
         rows.append(f'<tr><td class="lv-team"><span class="lv-logo"></span><span>Draw</span></td><td></td>'
-                    f'<td class="lv-dk">{american(g.draw_dk)}</td><td class="lv-k">{pct(g.draw_kalshi)}</td>'
-                    f'<td class="lv-ours">{pct(mine.draw if mine else None)}</td></tr>')
+                    f'<td class="lv-dk">{american(g.draw_dk)}</td><td class="lv-k">{ml_cell(g.draw_kalshi)}</td>'
+                    f'<td class="lv-ours">{ml_cell(mine.draw if mine else None)}</td></tr>')
     foot = " · ".join(x for x in (f"Spread {g.spread}" if g.spread else "", g.total) if x)
     if g.state == "in" and any(s.dk for s in g.sides):
         foot = (foot + " · " if foot else "") + "DraftKings line is pre-game"
@@ -183,7 +223,7 @@ def card(g: live.Game, sched: bool = False) -> str:
             f'<table><thead><tr><th></th><th>{"Score" if g.state != "pre" else ""}</th>'
             + ("" if g.state == "post" else '<th>DraftKings</th><th>Kalshi</th><th class="lv-ours-h">Ours</th>')
             + '</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table>' + sim_vs_kalshi(g, mine)
+            f'<tbody>{"".join(rows)}</tbody></table>' + ml_explain(g) + sim_vs_kalshi(g, mine)
             + (f'<div class="lv-foot">{html.escape(foot)}</div>' if foot else "")
             + '<div class="lv-more">Stats &amp; odds chart →</div></div></a>')
 
@@ -223,11 +263,23 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .lv-dk {{ width: 4.2rem; font-variant-numeric: tabular-nums; }}
 .lv-k {{ width: 4.8rem; font-variant-numeric: tabular-nums; font-weight: 600; }}
 /* our own Monte Carlo column: tinted so it reads as ours, next to the two apps */
-.lv-card td.lv-ours {{ width: 3.6rem; font-variant-numeric: tabular-nums; font-weight: 700; color: {COLOR} !important; }}
+.lv-card td.lv-ours {{ width: 4rem; font-variant-numeric: tabular-nums; font-weight: 700; color: {COLOR} !important; }}
 .lv-card th.lv-ours-h {{ color: {COLOR} !important; }}
 .lv-bar {{ display: block; height: 4px; background: #eceff3; border-radius: 2px; margin-top: 3px; overflow: hidden; }}
 .lv-bar b {{ display: block; height: 100%; }}
 .lv-foot {{ font-size: .74rem; color: #6b7889; margin-top: .3rem; }}
+.ed-bars {{ display: grid; gap: .3rem; margin: .45rem 0 .1rem; }}
+.ed-bars div {{ display: grid; grid-template-columns: 4.2rem 1fr 2.4rem; align-items: center; gap: .5rem;
+  font-size: .75rem; color: var(--muted); }}
+.ed-bars i {{ display: block; height: 7px; border-radius: 4px; background: var(--accent); min-width: 2px; }}
+.ed-bars div.k i {{ background: #8a94a3; }}
+.ed-bars b {{ text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }}
+.bb-card .ed-bars {{ margin-bottom: .55rem; }}
+.lv-card small.lv-p {{ display: block; font-size: .68rem; font-weight: 500; color: var(--muted); line-height: 1.1; }}
+.lv-howto {{ font-size: .88rem; line-height: 1.5; color: var(--sub); background: var(--soft); border: 1px solid var(--line);
+  border-radius: 6px; padding: .6rem .85rem; margin: .2rem 0 .6rem; }}
+.lv-howto b {{ color: var(--ink); }}
+.lv-ml {{ font-size: .76rem; color: var(--muted); margin: .4rem 0 0; line-height: 1.45; }}
 .lv-vs {{ font-size: .82rem; line-height: 1.4; color: var(--sub); background: var(--soft); border-radius: 4px;
   padding: .4rem .55rem; margin: .45rem 0 0; }}
 .lv-vs b {{ color: var(--ink); font-weight: 700; }}
@@ -486,9 +538,7 @@ def edge_card(e: bestbets.Edge, stake: float) -> str:
             f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
             f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
             f'<span class="ed-big">{e.ours * 100:.0f}%</span>; Kalshi has {e.kalshi * 100:.0f}%.</p>'
-            f'<div class="ed-bars"><div><span>Our sims</span><i style="width:{e.ours * 100:.0f}%"></i>'
-            f'<b>{e.ours * 100:.0f}%</b></div><div class="k"><span>Kalshi</span><i style="width:{e.kalshi * 100:.0f}%"></i>'
-            f'<b>{e.kalshi * 100:.0f}%</b></div></div>'
+            f'{sim_bars(e.ours, e.kalshi)}'
             f'<div class="bb-how">{pay}</div>'
             f'<div class="lv-foot">vs {html.escape(other.name)} · {html.escape(s.record)} vs {html.escape(other.record)}'
             f' · tap for the game page</div></div></a>')
@@ -498,12 +548,6 @@ EDGE_CSS = """<style>
 .ed-say { font-size: .98rem; line-height: 1.5; margin: .35rem 0 .55rem; color: var(--sub); }
 .ed-say b { color: var(--ink); }
 .ed-big { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 1.45rem; color: var(--accent); }
-.ed-bars { display: grid; gap: .3rem; margin-bottom: .55rem; }
-.ed-bars div { display: grid; grid-template-columns: 4.6rem 1fr 2.6rem; align-items: center; gap: .5rem;
-  font-size: .78rem; color: var(--muted); }
-.ed-bars i { display: block; height: 8px; border-radius: 4px; background: var(--accent); }
-.ed-bars div.k i { background: #8a94a3; }
-.ed-bars b { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
 .st-key-bb_stake_row { max-width: 240px; margin-bottom: .4rem; }
 </style>"""
 

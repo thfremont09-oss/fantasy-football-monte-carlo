@@ -359,3 +359,6 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   payout for your stake. Teams with fewer than 8 games played, and near-certain markets, are left out.
 * **Live Odds** cards and game pages end with one line on how our simulation tracks with Kalshi for that game
   ("We're higher on BOS: 63% in our sims vs 48% on Kalshi", or "Our sims agree with Kalshi").
+* **Moneylines everywhere on Live Odds:** DraftKings' line, plus Kalshi's and our own win chances turned into
+  moneylines (60% = -150, 40% = +150), with the win chance underneath, a one-line meaning for a $10 bet on each
+  card ("NY -199: bet $19.90 to win $10 · TOR +199: bet $10 to win $19.90") and a short explainer at the top.

@@ -84,6 +84,11 @@ def live_board():
                f"{n_live} live now · DraftKings via ESPN, live chances from Kalshi · **Ours** = our own Monte Carlo, "
                f"{CARD_SIMS:,} simulated games each · click a game for stats")
     found = []
+    st.markdown('<div class="lv-howto"><b>Reading the odds:</b> each number is a <b>moneyline</b>, a bet on who wins. '
+                '<b>Minus</b> is the favourite: <b>−150</b> means you bet $150 to win $100. <b>Plus</b> is the underdog: '
+                '<b>+150</b> means a $100 bet wins $150. Near <b>+100</b> is a coin flip. Kalshi and Ours are turned into '
+                'moneylines too, with the win chance underneath, so you can compare all three.</div>',
+                unsafe_allow_html=True)
     if query:
         # A searched team's latest result (however long ago it ended) and next game (however far away),
         # one per competition, shown first. If the board has the same game, its fresher copy is used.

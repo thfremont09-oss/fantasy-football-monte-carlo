@@ -224,6 +224,12 @@ if top10:
                 + (f', more than the {exp:.1f} Kalshi\'s prices expected' if won > exp
                    else f' (Kalshi\'s prices expected {exp:.1f})')
                 + f'. At $10 each: {"+" if prof >= 0 else "−"}${abs(prof):,.2f}.</p>', unsafe_allow_html=True)
+    dogs = sum(p.kalshi < 0.5 for p in top10)
+    if dogs:
+        st.markdown(f'<p class="rec-how"><b>{dogs} of these {len(top10)}</b> were underdogs (Kalshi had them under '
+                    f'50%), teams more likely to lose than win even when our sims liked them a lot more than the '
+                    f'market did. A big gap means a better price, not a likely winner, so several losses are '
+                    f'normal; the payoff comes from the bigger payouts on the wins.</p>', unsafe_allow_html=True)
     # Running profit over the 10 calls, in the order they were played.
     played = sorted(top10, key=lambda p: (p.day, -(p.ours - p.ask)))
     t10 = pd.DataFrame({"Call #": range(1, len(played) + 1),
@@ -262,6 +268,10 @@ else:
                 + f'. Across all {len(b.picks)} picks at $10 each, the week came to '
                 f'{"+" if b.profit >= 0 else "−"}${abs(b.profit):,.2f} ({roi * 100:+.0f}%).</p>',
                 unsafe_allow_html=True)
+    dogs_all = sum(p.kalshi < 0.5 for p in b.picks)
+    st.markdown(f'<p class="rec-how">{dogs_all} of the {len(b.picks)} picks were underdogs, so most of them were '
+                f'expected to lose even at good prices: at the prices paid, about {b.expected_by_kalshi:.0f} wins '
+                f'was the market\'s fair expectation.</p>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Picks", len(b.picks), help=f"From {b.games_checked} finished games with Kalshi prices")
     c2.metric("Won", f"{b.hits} ({pct(hit)})")

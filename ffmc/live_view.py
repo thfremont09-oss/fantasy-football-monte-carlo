@@ -644,7 +644,9 @@ def edge_card(e: bestbets.Edge, stake: float) -> str:
            if t.contracts else f"{money(stake)} won't buy a contract at {e.ask * 100:.0f}¢.")
     return (f'<a class="lv-cardlink" href="live?game={quote(g.key)}" target="_self"><div class="lv-card bb-card">'
             f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
-            f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
+            + (f'<div class="ed-dog">Underdog · even in our sims they lose {(1 - e.ours) * 100:.0f}% of the time'
+               f'</div>' if e.ours < 0.5 else "")
+            + f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
             f'<span class="ed-big">{e.ours * 100:.0f}%</span>; Kalshi has {e.kalshi * 100:.0f}%.</p>'
             f'{sim_bars(e.ours, e.kalshi)}{edge_lines(e)}'
             f'<div class="bb-how">{pay}</div>'
@@ -657,6 +659,11 @@ EDGE_CSS = """<style>
 .ed-say b { color: var(--ink); }
 .ed-big { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 1.45rem; color: var(--accent); }
 .st-key-bb_stake_row { max-width: 240px; margin-bottom: .4rem; }
+.ed-dog { display: inline-block; font-size: .72rem; font-weight: 700; color: #b26a00; background: rgba(178,106,0,.1);
+  border-radius: 4px; padding: .12rem .45rem; margin-top: .3rem; }
+.ed-note { font-size: .92rem; line-height: 1.55; color: var(--sub); background: var(--soft); border: 1px solid var(--line);
+  border-left: 3px solid #b26a00; border-radius: 6px; padding: .6rem .85rem; margin: .1rem 0 .9rem; max-width: 80ch; }
+.ed-note b { color: var(--ink); }
 </style>"""
 
 
@@ -668,6 +675,13 @@ def render_best_bets() -> None:
         stake = st.number_input("Your stake ($)", 1.0, 10_000.0, 10.0, step=5.0, key="bb_stake",
                                 help="Each card shows exactly what this buys on Kalshi and what you'd get back.")
     edges = bestbets.model_edges(games, ours_for)
+    dogs = sum(e.ours < 0.5 for e in edges)
+    st.markdown('<div class="ed-note"><b>Good value isn\'t the same as likely to win.</b> These picks are teams our '
+                'sims rate higher than Kalshi\'s price, but many are still underdogs: a team Kalshi has at 30% that '
+                'we think is really 40% is a bargain, yet it still loses about 6 times in 10. The value comes from '
+                'the bigger payout on the times it wins, so expect plenty of these to lose, even when the gap is big.'
+                + (f' Right now <b>{dogs} of {len(edges)}</b> picks are underdogs.' if edges else "") + '</div>',
+                unsafe_allow_html=True)
     if not edges:
         upcoming = sum(g.state == "pre" for g in games)
         st.info("Right now our simulations don't rate any team above Kalshi's price. "

@@ -224,6 +224,21 @@ if top10:
                 + (f', more than the {exp:.1f} Kalshi\'s prices expected' if won > exp
                    else f' (Kalshi\'s prices expected {exp:.1f})')
                 + f'. At $10 each: {"+" if prof >= 0 else "−"}${abs(prof):,.2f}.</p>', unsafe_allow_html=True)
+    # Running profit over the 10 calls, in the order they were played.
+    played = sorted(top10, key=lambda p: (p.day, -(p.ours - p.ask)))
+    t10 = pd.DataFrame({"Call #": range(1, len(played) + 1),
+                        "Running profit ($)": pd.Series([p.profit for p in played]).cumsum().round(2),
+                        "Pick": [p.pick for p in played], "Result": ["Won" if p.won else "Lost" for p in played],
+                        "This bet ($)": [round(p.profit, 2) for p in played]})
+    line = alt.Chart(t10).mark_line(color="#5b3cc4").encode(x=alt.X("Call #:Q", axis=alt.Axis(tickMinStep=1)),
+                                                            y="Running profit ($):Q")
+    dots = alt.Chart(t10).mark_circle(size=90, opacity=1).encode(
+        x="Call #:Q", y="Running profit ($):Q",
+        color=alt.Color("Result:N", scale=alt.Scale(domain=["Won", "Lost"], range=["#1e8e3e", "#d93025"]),
+                        legend=alt.Legend(orient="top", title=None)),
+        tooltip=["Call #", "Pick", "Result", "This bet ($)", "Running profit ($)"])
+    zero = alt.Chart(t10).mark_rule(color="#9ca3af", strokeDash=[4, 4]).encode(y=alt.datum(0))
+    st.altair_chart((zero + line + dots).properties(height=220), width="stretch")
     st.dataframe(pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
                                 "vs": p.opponent, "Our sims": p.ours * 100, "Kalshi": p.kalshi * 100,
                                 "Result": "Won" if p.won else "Lost", "Profit ($10)": p.profit, "Final": p.score}

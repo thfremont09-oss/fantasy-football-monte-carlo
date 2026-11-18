@@ -350,3 +350,12 @@ Saudi Pro League, EFL Championship, Scottish Premiership, ATP, WTA and UFC.
   country. Results in a team's last five are green (W) or red (L).
 * **Light / Dark** button in the header; by default the site follows the
   device's setting. Refreshes don't fade the page.
+
+## Our sims vs Kalshi
+
+* **Best Bets** (`views/bets.py`, `bestbets.model_edges`) lists teams in upcoming games whose win chance in our
+  1,000,000-run simulation is higher than the Kalshi price you'd pay, biggest gap first, each written plainly
+  ("We like X more than the market does. Our sims give them 81%; Kalshi has 60%.") with bars and the exact
+  payout for your stake. Teams with fewer than 8 games played, and near-certain markets, are left out.
+* **Live Odds** cards and game pages end with one line on how our simulation tracks with Kalshi for that game
+  ("We're higher on BOS: 63% in our sims vs 48% on Kalshi", or "Our sims agree with Kalshi").

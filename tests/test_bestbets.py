@@ -76,3 +76,24 @@ def test_always_shows_best_priced_bets_even_when_all_overpriced():
     bets, checked = bestbets.best_bets([g], "Kalshi", n=50_000)
     assert checked == 2 and len(bets) == 2
     assert all(bestbets.rating(b) == "overpriced" for b in bets)
+
+
+def test_model_edges_keep_teams_our_sims_like_more_than_kalshi():
+    from ffmc import winprob
+    g = game(150, -180, 0.40, 0.60, ask_away=0.41, ask_home=0.61, rec=("10-3", "6-7"))
+    ours = lambda _g: winprob.OwnOdds(away=0.55, home=0.45, draw=None, n_sims=1, basis="")
+    edges = bestbets.model_edges([g], ours)
+    assert [e.side.name for e in edges] == ["Away"]            # only the side we rate above its price
+    assert edges[0].gap == pytest.approx(0.55 - 0.41)
+    t = edges[0].ticket(10)
+    assert t.contracts > 0 and t.returned == t.contracts and t.spent <= 10
+
+
+def test_model_edges_skip_short_records_and_started_games():
+    from ffmc import winprob
+    ours = lambda _g: winprob.OwnOdds(away=0.9, home=0.1, draw=None, n_sims=1, basis="")
+    early = game(150, -180, 0.40, 0.60, ask_away=0.41, ask_home=0.61, rec=("2-1", "1-2"))
+    assert bestbets.model_edges([early], ours) == []
+    live_now = game(150, -180, 0.40, 0.60, ask_away=0.41, ask_home=0.61, rec=("10-3", "6-7"))
+    live_now.state = "in"
+    assert bestbets.model_edges([live_now], ours) == []

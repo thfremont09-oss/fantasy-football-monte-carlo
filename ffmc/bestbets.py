@@ -187,3 +187,50 @@ def rating(b: Bet) -> str:
     if b.value:
         return "value"
     return "fair" if b.ev >= -FAIR_BAND else "overpriced"
+
+
+# ------------------------------------------------------------------ our sim vs Kalshi
+@dataclass
+class Edge:
+    """A team our simulations rate higher than Kalshi does."""
+    game: Game
+    side: object           # live.Side
+    ours: float            # our simulated win chance
+    kalshi: float          # Kalshi's win chance (middle of buy and sell)
+    ask: float             # what one $1 Kalshi contract costs right now
+
+    @property
+    def gap(self) -> float:
+        """How much higher our chance is than the price you'd pay, in percentage points / 100."""
+        return self.ours - self.ask
+
+    def ticket(self, stake: float) -> Ticket:
+        return ticket(Bet(self.game, self.side.name, "Kalshi", f"{self.ask * 100:.0f}¢", 1 / self.ask, self.ask,
+                          self.ours, ask=self.ask), stake)
+
+
+MIN_GAMES = 8              # teams need this many games played: early-season records say too little
+
+
+def model_edges(games: list[Game], ours, top: int = 12) -> list[Edge]:
+    """Teams in games that haven't started where our Monte Carlo gives a better chance than Kalshi's price.
+
+    ``ours(game)`` returns our simulated odds (winprob.OwnOdds) or None. Only teams with a real record, and
+    Kalshi prices that aren't near-certain either way, so the comparison means something.
+    """
+    out = []
+    for g in games:
+        if g.state != "pre" or len(g.sides) != 2 or g.sport in ("Tennis", "MMA"):
+            continue
+        if min((winprob._share(s.record) or (0, 0))[1] for s in g.sides) < MIN_GAMES:
+            continue
+        mine = ours(g)
+        if not mine:
+            continue
+        for s, p in ((g.sides[0], mine.away), (g.sides[1], mine.home)):
+            if s.kalshi is None or s.kalshi_ask is None or not 0.05 <= s.kalshi <= 0.95:
+                continue
+            e = Edge(g, s, p, s.kalshi, s.kalshi_ask)
+            if e.gap > 0:
+                out.append(e)
+    return sorted(out, key=lambda e: -e.gap)[:top]

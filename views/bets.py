@@ -1,4 +1,4 @@
-"""Best Bets page: the best moneyline bets to make right now, on Kalshi or DraftKings."""
+"""Best Bets page: teams our simulations rate higher than Kalshi does."""
 
 from __future__ import annotations
 
@@ -8,11 +8,10 @@ from ffmc.live_view import CSS, render_best_bets
 from ffmc.ui import banner
 
 st.markdown(CSS, unsafe_allow_html=True)
-banner("bets", "Best Bets Now",
-       "The best win/lose bets on games that haven't started, on Kalshi or DraftKings. Each app's price is "
-       "checked against the other's, and every pick is played out 1,000,000 times. Set your stake to see "
-       "exactly what you'd win.",
-       chips=["Kalshi or DraftKings", "Upcoming games, every top league", "Refreshes every minute"])
+banner("edge", "Best Bets",
+       "Where our simulations rate a team higher than Kalshi does. Every upcoming game is played 1,000,000 times; "
+       "these are the teams that win more often in our sims than their Kalshi price says, biggest gap first.",
+       chips=["Upcoming games", "Biggest gap first", "Exact payout for your stake"])
 render_best_bets()
 st.divider()
 st.caption("Prices from Kalshi's public market data and DraftKings via ESPN. Not affiliated with ESPN, DraftKings "

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-18e"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-18f"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -25,6 +25,7 @@ SPORTS = {
     "f1": {"label": "Formula 1", "color": "#d0021b", "dark": "#5c000b",
            # chequered flag
            "texture": "repeating-conic-gradient(rgba(255,255,255,.07) 0 25%, transparent 0 50%) 0 0 / 26px 26px"},
+    "edge": {"label": "Our sims vs Kalshi", "color": "#5b3cc4", "dark": "#24165f", "texture": "none"},
     "lab": {"label": "The Lab", "color": "#c0392b", "dark": "#7a1f16", "texture": "none"},
     "bets": {"label": "DraftKings + Kalshi", "color": "#5b3cc4", "dark": "#24165f",
              # ticker-tape diagonals

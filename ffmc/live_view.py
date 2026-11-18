@@ -134,6 +134,25 @@ def result_chip(result: str) -> str:
     return f'<span class="wl wl-{kind}">{html.escape(result)}</span>'
 
 
+def sim_vs_kalshi(g: live.Game, mine: winprob.OwnOdds | None) -> str:
+    """One plain sentence: how our simulation tracks with Kalshi for this game (empty if we can't compare)."""
+    if not mine or len(g.sides) != 2:
+        return ""
+    pairs = [(s, p) for s, p in ((g.sides[0], mine.away), (g.sides[1], mine.home)) if s.kalshi is not None]
+    if not pairs:
+        return ""
+    s, p = max(pairs, key=lambda x: x[1] - x[0].kalshi)          # the side we're most positive on
+    gap = (p - s.kalshi) * 100
+    name = html.escape(s.short or s.name)
+    if abs(gap) < 3:
+        fav, fp = max(pairs, key=lambda x: x[1])
+        return (f'<div class="lv-vs"><b>Our sims agree with Kalshi:</b> {html.escape(fav.short or fav.name)} '
+                f'{fp * 100:.0f}% in our sims, {fav.kalshi * 100:.0f}% on Kalshi.</div>')
+    word = "a bit higher" if gap < 8 else "higher" if gap < 15 else "much higher"
+    return (f'<div class="lv-vs"><b>We\'re {word} on {name}:</b> {p * 100:.0f}% in our sims vs '
+            f'{s.kalshi * 100:.0f}% on Kalshi.</div>')
+
+
 def card(g: live.Game, sched: bool = False) -> str:
     rows = []
     best = max(range(len(g.sides)), key=lambda i: g.sides[i].kalshi or 0) if g.kalshi_updated else None
@@ -164,7 +183,7 @@ def card(g: live.Game, sched: bool = False) -> str:
             f'<table><thead><tr><th></th><th>{"Score" if g.state != "pre" else ""}</th>'
             + ("" if g.state == "post" else '<th>DraftKings</th><th>Kalshi</th><th class="lv-ours-h">Ours</th>')
             + '</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table>'
+            f'<tbody>{"".join(rows)}</tbody></table>' + sim_vs_kalshi(g, mine)
             + (f'<div class="lv-foot">{html.escape(foot)}</div>' if foot else "")
             + '<div class="lv-more">Stats &amp; odds chart →</div></div></a>')
 
@@ -209,6 +228,10 @@ tr.lv-win td.lv-team span, tr.lv-win .lv-score {{ font-weight: 700; color: #0c1a
 .lv-bar {{ display: block; height: 4px; background: #eceff3; border-radius: 2px; margin-top: 3px; overflow: hidden; }}
 .lv-bar b {{ display: block; height: 100%; }}
 .lv-foot {{ font-size: .74rem; color: #6b7889; margin-top: .3rem; }}
+.lv-vs {{ font-size: .82rem; line-height: 1.4; color: var(--sub); background: var(--soft); border-radius: 4px;
+  padding: .4rem .55rem; margin: .45rem 0 0; }}
+.lv-vs b {{ color: var(--ink); font-weight: 700; }}
+.lv-vs.gd-vs {{ font-size: .98rem; padding: .6rem .8rem; margin: -.4rem 0 .6rem; border-left: 3px solid var(--accent); }}
 .lv-more {{ font-size: .74rem; color: {COLOR}; font-weight: 600; margin-top: .35rem; text-align: right; }}
 .lv-count {{ font-family: "Archivo", sans-serif; font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em;
   margin: .6rem 0 .1rem; color: #14202e; }}
@@ -365,6 +388,8 @@ def game_view(key: str, day: str | None = None) -> None:
         f'{" (pre-game)" if g.state == "in" else ""}</p>{"".join(dk)}</div>'
         f'<div class="gd-box"><p class="eyebrow">Kalshi live win chance</p>{"".join(ks)}</div>{ours}</div></div>',
         unsafe_allow_html=True)
+    if mine and sim_vs_kalshi(g, mine):
+        st.markdown(sim_vs_kalshi(g, mine).replace('class="lv-vs"', 'class="lv-vs gd-vs"'), unsafe_allow_html=True)
     if mine:
         st.caption(f"Our Monte Carlo plays the rest of this game out {mine.n_sims:,} times using only {mine.basis}. "
                    "It doesn't know injuries, lineups or form the way the market does, so big gaps usually mean "
@@ -449,51 +474,57 @@ def bet_card(b: bestbets.Bet, stake: float) -> str:
             f'<div class="lv-foot">{tag} Fair chance from {html.escape(b.sources)}</div></div></a>')
 
 
-def render_best_bets() -> None:
-    """The Best Bets section: controls, then the simulated picks as cards."""
-    with st.container(key="bb_settings"):
-        b1, b2 = st.columns(2, gap="large")
-        book = b1.pills("Bet with", ["Kalshi", "DraftKings"], default="Kalshi", required=True, key="bb_book")
-        sort_label = b2.pills("Show", ["Best value", "Most likely to win"], default="Best value", required=True,
-                              key="bb_sort")
-        b3, b4 = st.columns(2, gap="large")
-        min_win = b3.slider("Minimum win chance", 0, 80, 25, step=5, format="%d%%", key="bb_min",
-                            help="Leave out long shots below this chance of winning.")
-        stake = b4.number_input("Stake ($)", 1.0, 10_000.0, 10.0, step=5.0, key="bb_stake")
-    with st.spinner("Simulating every bet 1,000,000 times..."):
-        bets, checked, when = best(book, "value" if sort_label == "Best value" else "likely", min_win / 100)
-    n_value = sum(b.value for b in bets)
-    st.caption(f"{checked} {book} bets checked at {when.astimezone(ET):%I:%M %p} ET · {n_value} clear value "
-               f"bet{'s' if n_value != 1 else ''} · refreshes every minute")
-    if not checked:
-        # Say why nothing could be checked, instead of a bare zero.
-        games, _ = board()
-        upcoming = [g for g in games if g.state == "pre"]
-        with_dk = sum(g.dk_fair() is not None for g in upcoming)
-        with_k = sum(any(s.kalshi is not None for s in g.sides) for g in upcoming)
-        if not upcoming:
-            why = "There are no upcoming games on the board right now (only live or finished ones)."
-        elif not with_k:
-            why = ("Kalshi's prices didn't come through just now (it may be asking us to slow down). "
-                   "They usually return within a minute; this page refreshes itself.")
-        elif not with_dk:
-            why = "DraftKings hasn't posted lines for the upcoming games yet."
-        else:
-            why = "No upcoming game has prices on both apps right now."
-        st.warning(f"No bets to check yet. {why} ({len(upcoming)} upcoming games · {with_dk} with DraftKings "
-                   f"lines · {with_k} with Kalshi prices)")
-        best.clear()                    # don't keep an empty answer for a whole minute
-    elif not bets:
-        st.info(f"{checked} {book} bets were checked, but none has at least a {min_win}% chance to win. "
-                "Lower the **Minimum win chance** to see them.")
-    else:
-        if not n_value:
-            st.caption(f"No clear value on {book} right now, so these are its best-priced bets. The tag on each "
-                       "card says whether the price is fair or how much too high it is.")
-        st.markdown(f'<div class="lv-grid">{"".join(bet_card(b, stake) for b in bets)}</div>',
-                    unsafe_allow_html=True)
-    st.caption("**You bet / get back / profit** are exact for your stake at the current price (Kalshi: whole $1 contracts plus its fee). **Average result** is what the bet makes on average across the 1,000,000 simulations; any single bet either pays the full amount or loses the stake. **Value** = better than its price with at least 55% confidence. **Fair price** = within about 3% "
-               "of fair. **Overpriced** = costs more than it's likely worth (by the % shown). Win chance and the average result come from the simulations; any single bet still wins "
-               "or loses. For information only, not betting advice. Must be 21+; if gambling stops being fun, "
-               "call 1-800-GAMBLER.")
+def edge_card(e: bestbets.Edge, stake: float) -> str:
+    """One pick, said plainly: how our simulations track with Kalshi, and what your stake gets back."""
+    g, s = e.game, e.side
+    t = e.ticket(stake)
+    other = next(x for x in g.sides if x is not s)
+    pay = (f'Bet {money(t.spent)} on Kalshi ({t.contracts} contracts at {e.ask * 100:.0f}¢, fee included) and you get '
+           f'back <b>{money(t.returned)}</b> if they win, <b class="bb-pos">+{money(t.profit)}</b>.'
+           if t.contracts else f"{money(stake)} won't buy a contract at {e.ask * 100:.0f}¢.")
+    return (f'<a class="lv-cardlink" href="live?game={quote(g.key)}" target="_self"><div class="lv-card bb-card">'
+            f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>'
+            f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
+            f'<span class="ed-big">{e.ours * 100:.0f}%</span>; Kalshi has {e.kalshi * 100:.0f}%.</p>'
+            f'<div class="ed-bars"><div><span>Our sims</span><i style="width:{e.ours * 100:.0f}%"></i>'
+            f'<b>{e.ours * 100:.0f}%</b></div><div class="k"><span>Kalshi</span><i style="width:{e.kalshi * 100:.0f}%"></i>'
+            f'<b>{e.kalshi * 100:.0f}%</b></div></div>'
+            f'<div class="bb-how">{pay}</div>'
+            f'<div class="lv-foot">vs {html.escape(other.name)} · {html.escape(s.record)} vs {html.escape(other.record)}'
+            f' · tap for the game page</div></div></a>')
 
+
+EDGE_CSS = """<style>
+.ed-say { font-size: .98rem; line-height: 1.5; margin: .35rem 0 .55rem; color: var(--sub); }
+.ed-say b { color: var(--ink); }
+.ed-big { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 1.45rem; color: var(--accent); }
+.ed-bars { display: grid; gap: .3rem; margin-bottom: .55rem; }
+.ed-bars div { display: grid; grid-template-columns: 4.6rem 1fr 2.6rem; align-items: center; gap: .5rem;
+  font-size: .78rem; color: var(--muted); }
+.ed-bars i { display: block; height: 8px; border-radius: 4px; background: var(--accent); }
+.ed-bars div.k i { background: #8a94a3; }
+.ed-bars b { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.st-key-bb_stake_row { max-width: 240px; margin-bottom: .4rem; }
+</style>"""
+
+
+def render_best_bets() -> None:
+    """Teams our simulations like more than Kalshi does, biggest gap first, each said in plain English."""
+    st.markdown(EDGE_CSS, unsafe_allow_html=True)
+    games, fetched = board()
+    with st.container(key="bb_stake_row"):
+        stake = st.number_input("Your stake ($)", 1.0, 10_000.0, 10.0, step=5.0, key="bb_stake",
+                                help="Each card shows exactly what this buys on Kalshi and what you'd get back.")
+    edges = bestbets.model_edges(games, ours_for)
+    if not edges:
+        upcoming = sum(g.state == "pre" for g in games)
+        st.info("Right now our simulations don't rate any team above Kalshi's price. "
+                f"({upcoming} upcoming games checked.) New prices come in all day; this page updates as they do.")
+    else:
+        st.markdown(f'<div class="lv-grid">{"".join(edge_card(e, stake) for e in edges)}</div>',
+                    unsafe_allow_html=True)
+    st.caption(f"Updated {fetched.astimezone(ET):%I:%M %p} ET. Each game is played 1,000,000 times by our model, "
+               "which knows each team's record, home advantage and nothing else; Kalshi's price reflects everything "
+               "the market knows (injuries, lineups, form). So a big gap can mean value, or that the market knows "
+               "something a record can't show. Teams with fewer than 8 games played are left out. For information "
+               "only, not betting advice. Must be 21+; if gambling stops being fun, call 1-800-GAMBLER.")

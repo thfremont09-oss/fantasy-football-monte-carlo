@@ -30,7 +30,7 @@ with st.container(key="site_header"):
     with theme, st.container(key="theme_col"):
         theme_button([p.url_path for p in PAGES], page.url_path)
     with brand, st.container(key="brand"):
-        st.page_link(home, label="Sports Lab")
+        st.page_link(home, label="Sports Lab", help="Home")
     # Desktop: plain links across the header. Phones: a menu button instead (CSS picks one).
     with nav, st.container(key="nav_col"), st.container(key="nav_inline", horizontal=True):
         for p in PAGES[1:]:

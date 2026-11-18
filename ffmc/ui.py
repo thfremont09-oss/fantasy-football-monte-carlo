@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-APP_VERSION = "2026-11-18b"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-18c"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -83,7 +83,19 @@ a, button {{ touch-action: manipulation; }}
   align-items: center; gap: .45rem; }}
 .st-key-brand p::before {{ content: "MC"; display: inline-block; background: var(--accent); color: #fff;
   font-weight: 900; font-style: italic; font-size: 1.05rem; letter-spacing: 0; padding: .12rem .45rem .1rem .38rem;
-  transform: skewX(-12deg); border-radius: 2px; }}
+  transform: skewX(-12deg); border-radius: 2px; transition: transform .18s ease, box-shadow .18s ease; }}
+/* room for the slanted badge's corner, so it isn't clipped on the left */
+.st-key-brand p {{ padding-left: 5px !important; margin-left: -5px !important; }}
+/* the wordmark is the home button: a quiet hint on hover (badge lifts, a hairline underline slides in) */
+.st-key-brand a[data-testid="stPageLink-NavLink"] {{ cursor: pointer; }}
+.st-key-brand p {{ background-image: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55));
+  background-repeat: no-repeat; background-size: 0 1px; background-position: 100% 92%;
+  transition: background-size .25s ease; }}
+@media (hover: hover) {{
+  .st-key-brand a:hover p {{ background-size: calc(100% - 3.45rem) 1px; background-position: 100% 92%; }}
+  .st-key-brand a:hover p::before {{ transform: skewX(-12deg) translateY(-1px); box-shadow: 0 3px 8px rgba(214,35,42,.35); }}
+}}
+.st-key-brand a:focus-visible {{ outline: 2px solid rgba(255,255,255,.6); outline-offset: 4px; border-radius: 4px; }}
 .brand-dot {{ color: #f2b134; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}

@@ -17,6 +17,11 @@ ET = record.ET
 TODAY = dt.datetime.now(ET).strftime("%Y-%m-%d")      # results are recomputed once a day
 
 
+def money(x: float) -> str:
+    """+$15.08 / −$9.87 (not "$-9.87")."""
+    return f"{'+' if x >= 0 else '−'}${abs(x):,.2f}"
+
+
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def bets(day: str) -> record.BetsRecord:
     return record.bets_record(days=7)
@@ -62,6 +67,10 @@ banner("lab", "How it has done",
 
 with st.spinner("Replaying the last week of games and grading every pick... (about a minute the first time today)"):
     b = bets(TODAY)
+    if b.failures:
+        # Some data couldn't be fetched even after retries: show what we have, but don't keep it cached, and
+        # say so, so a partial week is never passed off as the whole one.
+        bets.clear()
     f = f1_rounds(TODAY)
     w = fpl_weeks(TODAY)
     n = nfl_weeks(TODAY)
@@ -247,12 +256,13 @@ if top10:
     st.altair_chart((zero + line + dots).properties(height=220), width="stretch")
     st.dataframe(pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
                                 "vs": p.opponent, "Our sims": p.ours * 100, "Kalshi": p.kalshi * 100,
-                                "Result": "Won" if p.won else "Lost", "Profit ($10)": p.profit, "Final": p.score}
+                                "Result": "Won" if p.won else "Lost", "Profit ($10)": money(p.profit), "Final": p.score}
                                for p in top10]), hide_index=True, width="stretch", column_config={
         "Our sims": st.column_config.NumberColumn(format="%.0f%%"),
-        "Kalshi": st.column_config.NumberColumn(format="%.0f%%"),
-        "Profit ($10)": st.column_config.NumberColumn(format="$%.2f")})
+        "Kalshi": st.column_config.NumberColumn(format="%.0f%%")})
     st.subheader("All picks this week")
+    if b.failures:
+        st.warning("Some scores or Kalshi prices couldn't be loaded just now, so this week may be missing games. Reload the page in a minute for the full record.")
 if not b.picks:
     st.info("No picks to grade yet this week.")
 else:
@@ -278,6 +288,19 @@ else:
     c3.metric("Profit at $10 a pick", f"{'+' if b.profit >= 0 else '−'}${abs(b.profit):,.2f}")
     c4.metric("Expected wins", f"{b.expected_by_kalshi:.1f} / {b.expected_by_us:.1f}",
               help="How many should have won: by Kalshi's prices / by our simulation")
+    winners = sorted((p for p in b.picks if p.won), key=lambda p: -p.profit)[:10]
+    if winners:
+        st.subheader(f"Our {len(winners)} biggest hits this week")
+        st.markdown(f'<p class="rec-how">The winning picks that paid the most, at $10 each. For the full picture: '
+                    f'<b>{b.hits} of {len(b.picks)}</b> picks won this week, '
+                    f'{"+" if b.profit >= 0 else "−"}${abs(b.profit):,.2f} overall. Every pick is in the table '
+                    f'below.</p>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
+                                    "vs": p.opponent, "Kalshi price": f"{p.ask * 100:.0f}¢",
+                                    "Our sims": p.ours * 100, "Profit ($10)": money(p.profit), "Final": p.score}
+                                   for p in winners]), hide_index=True, width="stretch",
+                     column_config={"Our sims": st.column_config.NumberColumn(format="%.0f%%")})
+        st.markdown("**Every pick this week**")
     df = pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
                         "vs": p.opponent, "Our sims": p.ours * 100, "Kalshi": p.kalshi * 100,
                         "Price": f"{p.ask * 100:.0f}¢", "Result": "Won" if p.won else "Lost",
@@ -288,10 +311,9 @@ else:
     st.altair_chart(alt.Chart(chart_df).mark_line(point=True, color="#5b3cc4").encode(
         x=alt.X("Pick #:Q"), y=alt.Y("Running profit ($):Q"),
         tooltip=["Pick #", "Pick", "Result", "Running profit ($)"]).properties(height=220), width="stretch")
-    st.dataframe(df, hide_index=True, width="stretch", column_config={
-        "Our sims": st.column_config.NumberColumn(format="%.0f%%"),
-        "Kalshi": st.column_config.NumberColumn(format="%.0f%%"),
-        "Profit ($10)": st.column_config.NumberColumn(format="$%.2f")})
+    st.dataframe(df.assign(**{"Profit ($10)": df["Profit ($10)"].map(money)}), hide_index=True, width="stretch",
+                 column_config={"Our sims": st.column_config.NumberColumn(format="%.0f%%"),
+                                "Kalshi": st.column_config.NumberColumn(format="%.0f%%")})
     st.caption("A week is a small sample, so luck matters a lot: one long shot can swing the total. The fairer "
                "test is the last number above: whether picks win more often than Kalshi's prices said they would.")
 

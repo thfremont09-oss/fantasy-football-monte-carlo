@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -48,6 +50,7 @@ class BetsRecord:
     picks: list[GradedPick] = field(default_factory=list)
     games_checked: int = 0
     days: int = 0
+    failures: int = 0          # fetches that still failed after retries: the record may be missing games
 
     @property
     def hits(self) -> int:
@@ -90,11 +93,31 @@ def _pre_game_record(rec: str, won: bool | None, lost_in_ot: bool, draw: bool, t
     return "-".join(str(max(x, 0)) for x in parts)
 
 
+_FAILS = {"count": 0}
+_FAILS_LOCK = threading.Lock()
+
+
+def _get(http: CachedJSON, url: str, params, ttl: float, tries: int = 5):
+    """GET with retries: ESPN and Kalshi refuse bursts of requests (429) now and then. Without this a
+    refused request silently dropped a whole league from the record. A real "not found" isn't retried."""
+    for k in range(tries):
+        try:
+            return http.get(url, params, ttl=ttl)
+        except APIError as exc:
+            msg = str(exc)
+            if "404" in msg or "400" in msg or k == tries - 1:
+                if "404" not in msg:
+                    with _FAILS_LOCK:
+                        _FAILS["count"] += 1
+                raise
+            time.sleep(0.8 * 2 ** k)
+
+
 def _finished_games(http: CachedJSON, lg: tuple, day: dt.date, today: dt.date) -> list[live.Game]:
     sport, name, path, _ = lg
     try:
-        data = http.get(live.ESPN.format(path=path), [("dates", day.strftime("%Y%m%d")), ("limit", "300")],
-                        ttl=LONG if day < today - dt.timedelta(1) else 1800)
+        data = _get(http, live.ESPN.format(path=path), [("dates", day.strftime("%Y%m%d")), ("limit", "300")],
+                    ttl=LONG if day < today - dt.timedelta(1) else 1800)
     except APIError:
         return []
     out = []
@@ -121,7 +144,7 @@ def _settled_markets(http: CachedJSON, series: str, since: dt.datetime) -> dict[
         if cursor:
             params.append(("cursor", cursor))
         try:
-            data = http.get(f"{KALSHI_API}/markets", params, ttl=3600)
+            data = _get(http, f"{KALSHI_API}/markets", params, ttl=3600)
         except APIError:
             break
         for m in data.get("markets", []):
@@ -136,9 +159,8 @@ def _price_before(http: CachedJSON, series: str, ticker: str, start: dt.datetime
     """(chance, ask) from Kalshi's last hourly candle before ``start``."""
     end = int(start.timestamp())
     try:
-        data = http.get(f"{KALSHI_API}/series/{series}/markets/{ticker}/candlesticks",
-                        [("start_ts", str(end - 6 * 3600)), ("end_ts", str(end)), ("period_interval", "60")],
-                        ttl=LONG)
+        data = _get(http, f"{KALSHI_API}/series/{series}/markets/{ticker}/candlesticks",
+                    [("start_ts", str(end - 6 * 3600)), ("end_ts", str(end)), ("period_interval", "60")], ttl=LONG)
     except APIError:
         return None
     for c in reversed(data.get("candlesticks") or []):
@@ -159,7 +181,9 @@ def bets_record(days: int = 5, per_day: int = 12, cache_dir=".ffmc_cache", now: 
     span = [today - dt.timedelta(k) for k in range(1, days + 1)]
     leagues = [l for l in live.LEAGUES if l[0] not in ("Tennis", "MMA")]
     jobs = [(lg, d) for lg in leagues for d in span]
-    with ThreadPoolExecutor(8) as pool:
+    with _FAILS_LOCK:
+        failed_before = _FAILS["count"]
+    with ThreadPoolExecutor(4) as pool:
         found = list(pool.map(lambda j: (j[0], _finished_games(http, j[0], j[1], today)), jobs))
     by_league: dict[str, list[live.Game]] = {}
     for lg, gs in found:
@@ -205,7 +229,7 @@ def bets_record(days: int = 5, per_day: int = 12, cache_dir=".ffmc_cache", now: 
         g, i, s, p = c
         return c, _price_before(http, g.kalshi_series, s.kalshi_ticker, g.start)
 
-    with ThreadPoolExecutor(4) as pool:
+    with ThreadPoolExecutor(3) as pool:
         priced = list(pool.map(price, candidates))
 
     edges_by_day: dict[dt.date, list] = {}
@@ -225,6 +249,8 @@ def bets_record(days: int = 5, per_day: int = 12, cache_dir=".ffmc_cache", now: 
                 day=day, league=g.league, pick=s.name, opponent=other.name, ours=p, kalshi=mid, ask=ask, won=won,
                 profit=(t.profit if won else -t.spent) if t.contracts else 0.0,
                 score=f"{g.sides[0].short} {g.sides[0].score}, {g.sides[1].short} {g.sides[1].score}"))
+    with _FAILS_LOCK:
+        record.failures = _FAILS["count"] - failed_before
     return record
 
 

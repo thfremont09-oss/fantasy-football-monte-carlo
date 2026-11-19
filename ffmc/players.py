@@ -129,6 +129,76 @@ def search(query: str, http: CachedJSON | None = None, limit: int = 6) -> list[P
     return [p for score, p in ranked if score >= max(0.55, top - 0.3)][:limit]
 
 
+# ---------------------------------------------------------------- type-ahead suggestions
+
+# Well-known names for the search box, by league. Teams come from ESPN when the player is a stat leader.
+POPULAR = {
+    "NFL": ["Patrick Mahomes", "Josh Allen", "Lamar Jackson", "Joe Burrow", "Jalen Hurts", "Drake Maye",
+            "Caleb Williams", "Jayden Daniels", "C.J. Stroud", "Brock Purdy", "Aaron Rodgers", "Justin Jefferson",
+            "Ja'Marr Chase", "CeeDee Lamb", "Tyreek Hill", "Puka Nacua", "Amon-Ra St. Brown", "Travis Kelce",
+            "Christian McCaffrey", "Saquon Barkley", "Bijan Robinson", "Jahmyr Gibbs", "Derrick Henry",
+            "Micah Parsons", "T.J. Watt", "Myles Garrett"],
+    "NBA": ["LeBron James", "Stephen Curry", "Kevin Durant", "Giannis Antetokounmpo", "Nikola Jokic", "Luka Doncic",
+            "Shai Gilgeous-Alexander", "Jayson Tatum", "Anthony Edwards", "Victor Wembanyama", "Joel Embiid",
+            "Jalen Brunson", "Ja Morant", "Devin Booker", "Anthony Davis", "Tyrese Haliburton", "Cooper Flagg",
+            "Donovan Mitchell", "Kyrie Irving", "Paolo Banchero"],
+    "WNBA": ["Caitlin Clark", "A'ja Wilson", "Breanna Stewart", "Angel Reese", "Paige Bueckers", "Napheesa Collier",
+             "Sabrina Ionescu"],
+    "NHL": ["Connor McDavid", "Leon Draisaitl", "Auston Matthews", "Nathan MacKinnon", "Sidney Crosby",
+            "Alex Ovechkin", "Nikita Kucherov", "Cale Makar", "David Pastrnak", "Connor Bedard", "Macklin Celebrini",
+            "Jack Hughes", "Igor Shesterkin"],
+    "MLB": ["Shohei Ohtani", "Aaron Judge", "Juan Soto", "Mookie Betts", "Bryce Harper", "Ronald Acuna Jr.",
+            "Bobby Witt Jr.", "Freddie Freeman", "Fernando Tatis Jr.", "Paul Skenes", "Tarik Skubal",
+            "Elly De La Cruz", "Gunnar Henderson", "Cal Raleigh"],
+    "Soccer": ["Erling Haaland", "Mohamed Salah", "Kylian Mbappe", "Lionel Messi", "Cristiano Ronaldo", "Bukayo Saka",
+               "Cole Palmer", "Jude Bellingham", "Vinicius Junior", "Lamine Yamal", "Harry Kane", "Bruno Fernandes",
+               "Martin Odegaard", "Declan Rice", "Alexander Isak", "Christian Pulisic", "Florian Wirtz"],
+    "College": ["Arch Manning", "Jeremiah Smith", "AJ Dybantsa", "Cameron Boozer"],
+}
+LEADERS = [("football", "nfl", "NFL"), ("basketball", "nba", "NBA"), ("basketball", "wnba", "WNBA"),
+           ("hockey", "nhl", "NHL"), ("baseball", "mlb", "MLB")]
+
+
+@dataclass
+class Suggestion:
+    label: str            # what the search box shows: "Jordan Love · NFL QB · GB"
+    name: str
+    key: str = ""         # sport~league~id when we know exactly who it is
+
+
+def _leaders(http: CachedJSON, sport: str, league: str, tag: str) -> list[Suggestion]:
+    """This season's statistical leaders (top 10 in every category) for one league."""
+    try:
+        data = http.get(f"https://site.api.espn.com/apis/site/v3/sports/{sport}/{league}/leaders", ttl=12 * 3600)
+    except APIError:
+        return []
+    out = []
+    for cat in (data.get("leaders") or {}).get("categories") or []:
+        for row in cat.get("leaders") or []:
+            a = row.get("athlete") or {}
+            if not a.get("id") or not a.get("displayName"):
+                continue
+            pos = (a.get("position") or {}).get("abbreviation", "")
+            team = (row.get("team") or {}).get("abbreviation", "")
+            label = " · ".join(x for x in [a["displayName"], f"{tag} {pos}".strip(), team] if x)
+            out.append(Suggestion(label, a["displayName"], f"{sport}~{league}~{a['id']}"))
+    return out
+
+
+def suggestions(http: CachedJSON | None = None) -> list[Suggestion]:
+    """Names for the type-ahead: this season's stat leaders plus well-known players, one entry per player."""
+    http = http or CachedJSON()
+    with ThreadPoolExecutor(len(LEADERS)) as pool:
+        found = [s for chunk in pool.map(lambda x: _leaders(http, *x), LEADERS) for s in chunk]
+    by_name: dict[str, Suggestion] = {}
+    for s in found:
+        by_name.setdefault(_norm(s.name), s)
+    for tag, names in POPULAR.items():
+        for n in names:
+            by_name.setdefault(_norm(n), Suggestion(f"{n} · {tag}", n))
+    return sorted(by_name.values(), key=lambda s: s.label.lower())
+
+
 # ---------------------------------------------------------------- profile
 
 @dataclass

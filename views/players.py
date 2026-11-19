@@ -65,6 +65,11 @@ def search(q: str) -> list[players.Player]:
     return players.search(q)
 
 
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def suggestions() -> list[players.Suggestion]:
+    return players.suggestions()
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def profile(p: players.Player) -> players.Profile:
     return players.profile(p)
@@ -168,11 +173,21 @@ banner("stats", "Player Stats",
        chips=["NFL · NBA · WNBA · NHL · MLB", "College football & basketball", "Soccer"])
 
 qp = st.query_params
-q = st.text_input("Search a player", value=qp.get("q", ""), placeholder="Try Drake Maye, LeBron, McDavid, Haaland...",
-                  key="ps_q", icon=":material/search:")
-q = q.strip()
+sugg = suggestions()
+labels = [s.label for s in sugg]
+by_label = {s.label: s for s in sugg}
+shared = qp.get("q", "")                      # a shared link (?q=...) opens with that player picked
+if shared and shared not in by_label:
+    labels = [shared] + labels
+picked = st.selectbox("Search a player", labels, index=labels.index(shared) if shared else None,
+                      accept_new_options=True, key="ps_q",
+                      placeholder="Start typing: Drake Maye, LeBron, McDavid, Caitlin Clark, Haaland...")
+picked = (picked or "").strip()
+chosen = by_label.get(picked)
+q = chosen.name if chosen else picked          # a suggestion's label carries league and team; search by name
 if not q:
-    st.caption("Spelling doesn't have to be perfect: *drak maye* finds Drake Maye.")
+    st.caption("Pick a player from the list, or type any name and press Enter. Spelling doesn't have to be "
+               "perfect: *drak maye* finds Drake Maye.")
     st.stop()
 
 with st.spinner("Looking up players..."):
@@ -182,13 +197,14 @@ if not found:
     st.stop()
 
 options = {p.key: p for p in found}
-start = qp.get("p") if qp.get("p") in options else found[0].key
+want = chosen.key if chosen and chosen.key in options else qp.get("p")   # the exact player picked from the list
+start = want if want in options else found[0].key
 pick = start
 if len(found) > 1:
     keys = list(options)
     pick = st.selectbox("Not who you meant?", keys, index=keys.index(start), key=f"ps_pick_{q}",
                         format_func=lambda k: f"{options[k].name} · {options[k].short_label}")
-st.query_params.update({"q": q, "p": pick})
+st.query_params.update({"q": picked, "p": pick})
 player = options[pick]
 
 with st.spinner(f"Loading {player.name}..."):

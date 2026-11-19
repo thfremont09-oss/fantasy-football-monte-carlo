@@ -93,3 +93,17 @@ def test_profile_key_numbers_and_facts():
     assert "On pace for **3,900 passing yards**" in text
     assert "500 passing yards away from **10,000 career passing yards**" in text
     assert [t.rows[-1][0] for t in pr.seasons] == ["Career"]
+
+
+def test_suggestions_merge_leaders_and_popular_names():
+    leader = {"leaders": {"categories": [{"leaders": [
+        {"athlete": {"id": "3139477", "displayName": "Patrick Mahomes", "position": {"abbreviation": "QB"}},
+         "team": {"abbreviation": "KC"}},
+        {"athlete": {"id": "3139477", "displayName": "Patrick Mahomes", "position": {"abbreviation": "QB"}},
+         "team": {"abbreviation": "KC"}}]}]}}
+    http = FakeHTTP({"leaders": leader})
+    s = players.suggestions(http)
+    mahomes = [x for x in s if x.name == "Patrick Mahomes"]
+    assert len(mahomes) == 1 and mahomes[0].label.endswith("NFL QB · KC") and mahomes[0].key.endswith("3139477")
+    assert any(x.label == "Erling Haaland · Soccer" for x in s)
+    assert len({x.label for x in s}) == len(s)

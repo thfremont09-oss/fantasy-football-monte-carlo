@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-APP_VERSION = "2026-11-19c"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-19d"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"

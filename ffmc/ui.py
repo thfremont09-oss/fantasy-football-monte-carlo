@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import streamlit as st
 
-APP_VERSION = "2026-11-19a"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-19b"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -38,8 +41,11 @@ SPORTS = {
               "texture": "radial-gradient(rgba(255,255,255,.12) 1.4px, transparent 1.6px) 0 0 / 18px 18px"},
 }
 
-BRAND_TEXT_X = "3.45rem"                       # where "Sports Lab" starts, after the MC badge
-BRAND_TEXT_W = "calc(100% - 3.45rem - 1.55rem)"   # its width (minus the badge before it and the home icon after)
+# The logo mark (a bell curve of bars: a million simulated games) from static/brand/mark.svg, inlined.
+_MARK = Path(__file__).resolve().parent.parent / "static" / "brand" / "mark.svg"
+MARK_URI = "data:image/svg+xml;base64," + base64.b64encode(_MARK.read_bytes()).decode() if _MARK.exists() else ""
+BRAND_TEXT_X = "calc(5px + 2.1rem + .6rem)"           # where "Monte Sports Lab" starts, after the mark
+BRAND_TEXT_W = f"calc(100% - {BRAND_TEXT_X} - 1.55rem)"   # its width (minus the mark before it and the home icon after)
 
 SITE_CSS = f"""
 <style>
@@ -81,14 +87,14 @@ a, button {{ touch-action: manipulation; }}
 .st-key-site_header [data-testid="stColumn"]:last-child {{ flex: 0 0 auto !important; width: auto !important; }}
 .st-key-brand a[data-testid="stPageLink-NavLink"] > span:first-child {{ display: none; }}
 .st-key-brand a[data-testid="stPageLink-NavLink"] {{ padding-left: 0; background: none !important; }}
-/* wordmark: a slanted red "MC" badge, then "Sports Lab" */
+/* wordmark: the bell-curve mark, then "Monte Sports Lab" */
 .st-key-brand p {{ color: #fff !important; font-family: "Archivo", sans-serif !important;
-  font-size: 1.45rem !important; font-weight: 800 !important; letter-spacing: -.015em; display: flex !important;
-  align-items: center; gap: .45rem; }}
-.st-key-brand p::before {{ content: "MC"; display: inline-block; background: var(--accent); color: #fff;
-  font-weight: 900; font-style: italic; font-size: 1.05rem; letter-spacing: 0; padding: .12rem .45rem .1rem .38rem;
-  transform: skewX(-12deg); border-radius: 2px; transition: transform .18s ease, box-shadow .18s ease; }}
-/* room for the slanted badge's corner, so it isn't clipped on the left */
+  font-size: 1.4rem !important; font-weight: 800 !important; letter-spacing: -.02em; display: flex !important;
+  align-items: center; gap: .6rem; }}
+.st-key-brand p::before {{ content: ""; flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 8px;
+  background: url("{MARK_URI}") center / cover no-repeat; box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+  transition: transform .18s ease, box-shadow .18s ease; }}
+/* a little room on the left, so the mark's edge and focus ring aren't clipped */
 .st-key-brand p {{ padding-left: 5px !important; margin-left: -5px !important; }}
 /* the wordmark is the home button: a small house icon after it says so at all times; the hairline underline
    slides in only while you hover */
@@ -102,7 +108,7 @@ a, button {{ touch-action: manipulation; }}
 @media (hover: hover) {{
   .st-key-brand a:hover p {{ background-size: {BRAND_TEXT_W} 1px; }}
   .st-key-brand a:hover p::after {{ color: #fff; }}
-  .st-key-brand a:hover p::before {{ transform: skewX(-12deg) translateY(-1px); box-shadow: 0 3px 8px rgba(214,35,42,.35); }}
+  .st-key-brand a:hover p::before {{ transform: translateY(-1px) rotate(-3deg); box-shadow: 0 4px 12px rgba(242,177,52,.35); }}
 }}
 /* header tabs get the same hairline underline on hover */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{
@@ -144,7 +150,12 @@ a, button {{ touch-action: manipulation; }}
 @media (max-width: 899px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
   [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 1 1 auto !important; width: auto !important; }} }}
 .st-key-brand p {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-@media (max-width: 520px) {{ .st-key-brand p {{ font-size: 1.22rem !important; letter-spacing: .01em; }}
+@media (max-width: 520px) {{ .st-key-brand p {{ font-size: 1.18rem !important; letter-spacing: -.01em; gap: .5rem; }}
+  .st-key-brand p::before {{ width: 1.9rem; height: 1.9rem; }}
+  /* phones: the menu button is just its icon, so the whole name fits */
+  .st-key-menu_col [data-testid="stPopover"] button [data-testid="stMarkdownContainer"],
+  .st-key-menu_col [data-testid="stPopover"] button [data-testid="stIconMaterial"]:last-child:not(:first-child) {{ display: none !important; }}
+  .st-key-menu_col [data-testid="stPopover"] button {{ padding: 0 .75rem !important; }}
   .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }} }}
 /* menu panel: whole rows are tap targets */
 [data-testid="stPopoverBody"]:has(.st-key-menu_items) {{ min-width: min(330px, 92vw); padding: 0.4rem; }}

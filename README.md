@@ -1,4 +1,4 @@
-# Monte Carlo Sports Lab
+# Monte Sports Lab
 
 A website with three simulators that play games out 1,000,000 times with real
 data (simulations run in batches of 25,000-100,000 and keep only running totals,
@@ -12,7 +12,7 @@ so a million fit in a few hundred MB) and tell you which choice comes out ahead 
 
 The homepage explains each model in plain English. Each tool keeps its settings
 in a panel at the top of its page (there is no sidebar). Pages live in `views/`; the
-header, menu and colors are in `app.py` and `ffmc/ui.py`; fonts and base colors
+header, menu and colors are in `main.py` and `ffmc/ui.py`; fonts and base colors
 in `.streamlit/config.toml`.
 
 ## Run it on a Mac (easiest)
@@ -110,7 +110,7 @@ Useful options (`python -m ffmc --help` for all):
 | `--independent` | turn off teammate/game correlation |
 | `--dream` | ignore rosters, use every player |
 
-The UI lives in `app.py` (Streamlit); the engine is in `ffmc/`.
+The UI lives in `main.py` (Streamlit, started through `app.py`); the engine is in `ffmc/`.
 
 Your league id is the number in the Sleeper web URL:
 `sleeper.com/leagues/<LEAGUE_ID>/team`.
@@ -385,10 +385,14 @@ Results are recomputed once a day (about 40 seconds the first time) and cached.
 
 ## Search engines (SEO)
 
-Streamlit serves one bare HTML page titled "Streamlit" and builds everything in the browser, so crawlers and
-link previews see almost nothing. `seo/patch_index.py` rewrites that page with the Google title, description,
-keywords, link-preview (Open Graph/Twitter) tags, structured data and a plain-HTML summary of every tool inside
-the app's root element (replaced by the app once it loads). `app.py` runs it once per server start; on Render
-it can also run at build time: `pip install -r requirements.txt && python seo/patch_index.py`. Each page also
-sets its own browser/Google title (`PAGE_TITLES` in `app.py`). The sitemap is `static/sitemap.xml`, served at
-`https://montesportslab.com/app/static/sitemap.xml`.
+Start the site with `streamlit run app.py`. `app.py` wraps the Streamlit site (`main.py`) in `st.App` with extra
+routes on the same server (`seo/site.py`), because Streamlit alone serves one bare page that crawlers can't read:
+
+* every app page (`/`, `/live`, `/bets`, ...) is served as real HTML with its own Google title, description,
+  canonical link, share image and structured data, plus a plain-HTML version of the page (with today's games
+  and best bets on `/`, `/live` and `/bets`) that the app replaces once it loads;
+* `/guides/...`: plain articles answering common searches (moneyline odds, best FPL team, parlays...);
+* `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest`, favicons and the share image `/og.png`.
+
+Titles, descriptions and guide text live in `seo/content.py`. The logo is `static/brand/mark.svg`; re-render the
+PNG icons and share image with `node seo/brand/render_brand.js . seo/brand/og_template.html`.

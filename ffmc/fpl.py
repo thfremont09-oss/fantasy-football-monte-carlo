@@ -406,6 +406,7 @@ class Result:
 
 
 SELECT_SIMS = 50_000    # simulations used to choose the team; the rest only measure it
+SELECT_CHUNK = 10_000   # simulated gameweeks held in memory at once
 
 
 def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 25_000, seed: int | None = None,
@@ -423,9 +424,18 @@ def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 25_000, seed: int 
     rng = np.random.default_rng(seed)
     select_seed, measure_seed = (int(x) for x in rng.integers(0, 2**32, size=2))
 
-    # 1. Choose the team.
-    sims = simulate(gw, players, min(n_sims, SELECT_SIMS), select_seed)
-    mean = sims.mean(axis=0)
+    # 1. Choose the team. The selection sims run in chunks and are averaged, so memory stays small
+    #    (a hosting plan with 512 MB is enough); the first chunk is kept as a sample for the hindsight stats.
+    n_select = min(n_sims, SELECT_SIMS)
+    total = np.zeros(len(players))
+    sample = None
+    for size, chunk_seed in batches(n_select, select_seed, batch=SELECT_CHUNK):
+        chunk = simulate(gw, players, size, chunk_seed)
+        total += chunk.sum(axis=0, dtype=np.float64)
+        if sample is None:
+            sample = chunk[:2000].copy()               # hindsight XI is slow per row; a sample is plenty
+        del chunk
+    mean = total / n_select
     allowed = None
     squad_cost = None
     if squad is None and budget is not None:
@@ -441,18 +451,16 @@ def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 25_000, seed: int 
     captain, vice = by_mean[0], by_mean[1]
 
     in_best = np.zeros(len(players))
-    sample = sims[:2000]                              # hindsight XI is slow per row; a sample is plenty
     for row in sample:
         in_best[pick_xi(row, players, allowed)] += 1
     in_best_pct = 100 * in_best / len(sample)
-    del sims
 
     # 2. Measure it on fresh simulations, in batches.
     tally = Tally(len(players), lo=-10, hi=80, step=1)      # FPL points are whole numbers
     top = np.zeros(len(players))
     totals = []
     done = 0
-    for size, batch_seed in batches(n_sims, measure_seed, batch=25_000):
+    for size, batch_seed in batches(n_sims, measure_seed, batch=SELECT_CHUNK):
         sims = simulate(gw, players, size, batch_seed)
         tally.add(sims)
         xi_sims = sims[:, xi]

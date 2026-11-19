@@ -83,6 +83,23 @@ PAGES: list[Page] = [
           "Your win chance against this week's opponent",
           "Built for ESPN leagues, public and private"],
          ["best-fantasy-football-lineup", "monte-carlo-simulation-sports"], "NFL fantasy"),
+    Page("nba-fantasy", "Fantasy Basketball Lineup Today | Monte Sports Lab",
+         "Best ESPN fantasy basketball lineup for today, filled exactly across PG, G and UTIL slots, plus your "
+         "chance to win this week from 1,000,000 simulated weeks.",
+         "Fantasy basketball lineups",
+         "Connect your ESPN fantasy basketball league and get today's best lineup from your players with a game, "
+         "and your chance of winning this week's matchup: every remaining day is simulated a million times for "
+         "you and your opponent.",
+         ["Today's best lineup, any day this week", "This week's win chance", "Points and category leagues"],
+         ["monte-carlo-simulation-sports"], "NBA fantasy"),
+    Page("nhl-fantasy", "Fantasy Hockey Lineup Today | Monte Sports Lab",
+         "Best ESPN fantasy hockey lineup for today, with goalie start chances, plus your odds of winning this "
+         "week from 1,000,000 simulated weeks.",
+         "Fantasy hockey lineups",
+         "Connect your ESPN fantasy hockey league and get today's best lineup, with goalies valued by how often they "
+         "start, and your chance of winning this week's matchup from a million simulated weeks.",
+         ["Today's best lineup", "Goalie start chances", "This week's win chance"],
+         ["monte-carlo-simulation-sports"], "NHL fantasy"),
     Page("f1", "Best F1 Fantasy Team This Race | Monte Sports Lab",
          "The best F1 Fantasy team for this race: 5 drivers, 2 constructors and your DRS Boost pick under the $100M cap, from official prices and 1,000,000 simulations.",
          "Best F1 Fantasy team for this race",

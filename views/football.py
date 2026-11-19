@@ -12,7 +12,8 @@ import streamlit as st
 
 from zoneinfo import ZoneInfo
 
-from ffmc import engine, matchup
+from ffmc import cfb, engine, matchup
+from ffmc.http import APIError
 from ffmc.data import Slate, with_rosters
 from ffmc.lineup import SLOT_ELIGIBILITY
 from ffmc.demo import demo_slate
@@ -36,6 +37,8 @@ OBJECTIVES = {
     "ceiling": "Big ceiling (swing for upside)",
 }
 MODES = ["My ESPN league", "Best possible lineup (any NFL player)", "Pick my players"]
+CFB_MODES = ["Best possible lineup (any FBS player)", "Pick my players"]
+CFB_SLOT_TYPES = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX"]
 DEMO_SCORING = {"ESPN PPR": "espn", "ESPN Half-PPR": "half", "ESPN Standard": "std"}
 
 
@@ -61,6 +64,16 @@ def load_espn_league(season: int, week: int, league_id: str, team_id: int | None
     return load_league(ESPNFantasy(season, espn_s2=espn_s2, swid=swid), league_id, team_id, week, history_weeks)
 
 
+@st.cache_data(ttl=1800, show_spinner="Reading this season's college box scores (first time takes a minute)...")
+def load_cfb(season: int, week: int, rules: str, slots: tuple[str, ...], history_weeks: int) -> Slate:
+    return cfb.load_slate(cfb.CollegeData(), rules, list(slots), season, week, history_weeks)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def cfb_now() -> tuple[int, int]:
+    return cfb.CollegeData().current()
+
+
 @st.cache_data(show_spinner=False)
 def load_demo(scoring: str, with_roster: bool) -> Slate:
     return demo_slate(scoring=scoring, with_roster=with_roster)
@@ -69,6 +82,8 @@ def load_demo(scoring: str, with_roster: bool) -> Slate:
 def headshot(p, live: bool) -> str | None:
     if not live:
         return None
+    if college:
+        return f"https://a.espncdn.com/i/headshots/college-football/players/full/{p.player_id}.png"
     if p.position == "DEF":
         return f"https://a.espncdn.com/i/teamlogos/nfl/500/{(p.team or '').lower()}.png"
     return f"https://a.espncdn.com/i/headshots/nfl/players/full/{p.player_id}.png"
@@ -76,12 +91,17 @@ def headshot(p, live: bool) -> str | None:
 
 # --------------------------------------------------------------- settings
 banner("nfl", "Fantasy Football Lineups",
-       "Built for ESPN leagues. Your week is simulated 1,000,000 times from ESPN's projections, each "
+       "Built for ESPN leagues, plus college football. Your week is simulated 1,000,000 times from ESPN's projections, each "
        "player's recent games, injury status and matchup, and the lineup that comes out ahead most often "
        "is the one to start.")
 
 with st.container(key="settings"):
-    mode = st.pills("Whose lineup?", MODES, default=MODES[0], required=True, key="nfl_mode")
+    level = st.segmented_control("League", ["NFL", "College football"], default="NFL", key="ff_level") or "NFL"
+    college = level != "NFL"
+    if college:
+        mode = st.pills("Whose lineup?", CFB_MODES, default=CFB_MODES[0], required=True, key="cfb_mode")
+    else:
+        mode = st.pills("Whose lineup?", MODES, default=MODES[0], required=True, key="nfl_mode")
     dream = mode.startswith("Best")
 
     league_id, espn_s2, swid = "", "", ""
@@ -93,15 +113,23 @@ with st.container(key="settings"):
                                    "fantasy.espn.com/football/league?leagueId=12345678")
     else:
         c1, c2, c3 = st.columns([2, 1, 1], gap="medium")
-        rules = c1.selectbox("Scoring", list(DEFAULT_RULES),
-                             help="ESPN's standard rules: 4 per passing TD, -2 per interception, "
+        rules = c1.selectbox("Scoring", list(cfb.RULES) if college else list(DEFAULT_RULES),
+                             help="Standard rules: 4 per passing TD, -2 per interception, "
                                   "6 per rushing/receiving TD, and 1 (PPR), 0.5 or 0 per catch.")
 
     with st.expander("Advanced: season, week, demo data"):
-        demo = st.toggle("Use demo data (offline)", value=False,
-                         help="Fake players, no internet needed. Turn off for real NFL data from ESPN.")
+        demo = st.toggle("Use demo data (offline)", value=False, disabled=college,
+                         help="Fake players, no internet needed. Turn off for real NFL data from ESPN.") and not college
     season = week = None
-    if not demo:
+    if college:
+        try:
+            cur_season, cur_week = cfb_now()
+        except APIError as exc:
+            st.error(f"Couldn't reach ESPN: {exc}")
+            st.stop()
+        season = c2.number_input("Season", 2018, 2100, cur_season, key="cfb_season")
+        week = c3.number_input("Week", 2, 16, min(max(cur_week, 2), 16), key="cfb_week")
+    elif not demo:
         try:
             cur_season = nfl_season()
             cur_week = espn_week(cur_season)
@@ -127,24 +155,29 @@ with st.container(key="settings"):
         if demo:
             st.info("Demo mode uses a fake league matchup.")
 
-    slots = list(DEFAULT_SLOTS)
+    slots = list(cfb.DEFAULT_SLOTS if college else DEFAULT_SLOTS)
     # Two expanders side by side when there's a lineup-slots one; otherwise one full-width row.
     e1, e2 = st.columns(2, gap="medium") if mode != "My ESPN league" else (st.container(), None)
     if mode != "My ESPN league":
         with e1.expander("Lineup slots"):
-            st.caption("ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")
-            defaults = {s: DEFAULT_SLOTS.count(s) for s in SLOT_TYPES}
+            base = cfb.DEFAULT_SLOTS if college else DEFAULT_SLOTS
+            st.caption("College default: QB, 2 RB, 3 WR, TE, FLEX (no kickers or defenses: box scores don't "
+                       "cover them well enough)." if college else "ESPN's default: QB, 2 RB, 2 WR, TE, FLEX, D/ST, K.")
+            kinds = CFB_SLOT_TYPES if college else SLOT_TYPES
+            defaults = {s: base.count(s) for s in kinds}
             slots = []
             g1, g2 = st.columns(2)
-            for k, s in enumerate(SLOT_TYPES):
-                n = (g1 if k % 2 == 0 else g2).number_input(SLOT_LABELS.get(s, s), 0, 4, defaults[s], key=f"slot_{s}")
+            for k, s in enumerate(kinds):
+                n = (g1 if k % 2 == 0 else g2).number_input(SLOT_LABELS.get(s, s), 0, 4, defaults[s],
+                                                            key=f"{'cfb_' if college else ''}slot_{s}")
                 slots += [s] * int(n)
     with (e2 if mode != "My ESPN league" else e1).expander("Simulation settings"):
         objective = st.selectbox("Optimize for", list(OBJECTIVES), format_func=OBJECTIVES.get)
         n_sims = st.select_slider("Simulated weeks", [50_000, 100_000, 250_000, 1_000_000], value=1_000_000,
                                    format_func=lambda n: f"{n:,}",
                                    help="More simulations = steadier odds, but slower. A million takes a few seconds.")
-        history_weeks = st.slider("Weeks of recent stats", 0, 10, 6,
+        history_weeks = st.slider("Weeks of recent stats", 2 if college else 0, 6 if college else 10,
+                                  5 if college else 6,
                                   help="Used to judge how boom-or-bust each player is.")
         correlated = st.checkbox("Teammates & games are correlated", value=True,
                                  help="A QB and their receivers rise and fall together; a defense "
@@ -153,7 +186,9 @@ with st.container(key="settings"):
 
 # ------------------------------------------------------------ build slate
 try:
-    if demo:
+    if college:
+        slate = load_cfb(int(season), int(week), rules, tuple(slots), history_weeks)
+    elif demo:
         slate = load_demo(DEMO_SCORING[rules], with_roster=not dream)
         if mode != "My ESPN league":
             slate = replace(slate, slots=slots)
@@ -173,7 +208,7 @@ try:
                                     history_weeks)
     else:
         slate = load_pool(int(season), int(week), rules, tuple(slots), history_weeks)
-except ESPNError as exc:
+except (ESPNError, APIError) as exc:
     st.error(str(exc))
     st.stop()
 
@@ -185,10 +220,10 @@ if mode == "Pick my players":
     ranked = sorted(slate.players, key=lambda p: -p.mean * p.p_play)
     labels = {p.player_id: f"{p.name} · {p.position} · {p.team or 'FA'}" for p in ranked}
     c1, c2 = st.columns(2)
-    mine = c1.multiselect("Your players", list(labels), format_func=labels.get, key="mine",
+    mine = c1.multiselect("Your players", list(labels), format_func=labels.get, key="cfb_mine" if college else "mine",
                           placeholder="Start typing a name... (defenses by team name)")
     theirs = c2.multiselect("Opponent's players (optional)", [p for p in labels if p not in mine],
-                            format_func=labels.get, key="theirs",
+                            format_func=labels.get, key="cfb_theirs" if college else "theirs",
                             placeholder="Add them to see your win probability")
     if not mine:
         st.info("Add your players above, then hit **Simulate**.")
@@ -196,7 +231,7 @@ if mode == "Pick my players":
     slate = with_rosters(slate, set(mine), set(theirs))
 
 st.caption(f"Season {slate.season} · Week {slate.week} · Scoring: {slate.scoring_name} · "
-           f"Data: {'synthetic demo' if demo else 'live from ESPN (projections, recent points, injuries)'}")
+           f"Data: {'synthetic demo' if demo else 'our projections from ESPN college box scores' if college else 'live from ESPN (projections, recent points, injuries)'}")
 for note in slate.notes:
     st.caption(note)
 
@@ -206,7 +241,7 @@ if objective == "win" and (dream or not slate.has_opponent):
             "players under **Pick my players**.")
     objective = "mean"
 
-params = (demo, mode, slate.season, slate.week, tuple(slate.slots), tuple(sorted(slate.my_ids)),
+params = (college, demo, mode, slate.season, slate.week, tuple(slate.slots), tuple(sorted(slate.my_ids)),
           tuple(sorted(slate.opp_ids)), objective, n_sims, history_weeks, correlated, seed, rules)
 if st.button(f"Simulate {n_sims:,} weeks", type="primary") or st.session_state.get("params") == params:
     if st.session_state.get("params") != params:
@@ -251,7 +286,7 @@ def why_card(r: engine.PlayerResult, slot: str, starter: bool) -> None:
     """Short, plain-English reasons for one player, shown when their row is clicked."""
     p = r.player
     lines = []
-    m = player_matchup(slate.season, slate.week, p.player_id, p.position, p.team) if live and p.team else None
+    m = player_matchup(slate.season, slate.week, p.player_id, p.position, p.team) if live and p.team and not college else None
     if m and m.opponent:
         when = f", {m.kickoff.astimezone(ET):%A %I:%M %p} ET".replace(" 0", " ") if m.kickoff else ""
         lines.append(f"**Opponent:** {'vs' if m.home else '@'} the **{m.opponent}** "
@@ -264,11 +299,15 @@ def why_card(r: engine.PlayerResult, slot: str, starter: bool) -> None:
             lines.append(f"**Matchup:** this season the {m.opp_abbrev} defense has given up {most} fantasy points "
                          f"to {p.position}s of {m.n_teams} teams ({m.allowed_avg:.1f} PPR points per game). "
                          f"That's {matchup.verdict(m.allowed_rank, m.n_teams)}.")
+    elif college and p.opponent:
+        lines.append(f"**Opponent:** {p.team} plays **{p.opponent}** this week. Our projection is their points per "
+                     "game over recent box scores, raised or lowered by how many points the betting line expects "
+                     f"{p.team} to score.")
     elif not p.opponent:
         lines.append("**Opponent:** none this week (bye), so they can't score.")
     recent = (f" and has averaged **{p.hist_mean:.1f}** over the last {p.hist_games} games"
               if p.hist_mean is not None and p.hist_games else "")
-    lines.append(f"**The numbers:** ESPN projects **{p.projection:.1f}** points{recent}. Across "
+    lines.append(f"**The numbers:** {'Our projection is' if college else 'ESPN projects'} **{p.projection:.1f}** points{recent}. Across "
                  f"{res.n_sims:,} simulated weeks: **{r.sim_mean:.1f}** on average, usually between "
                  f"{r.p10:.1f} and {r.p90:.1f}, and in the best possible lineup **{r.start_pct:.0f}%** of the time.")
     if p.injury_status:

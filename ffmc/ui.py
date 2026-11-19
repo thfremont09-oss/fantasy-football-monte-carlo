@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-APP_VERSION = "2026-11-19d"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-19e"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -19,6 +19,8 @@ SPORTS = {
     "nfl": {"label": "NFL", "color": "#2e7d3a", "dark": "#164a20",
             # yard lines
             "texture": "repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 2px, transparent 2px 72px)"},
+    "nba": {"label": "NBA Fantasy", "color": "#1d428a", "dark": "#0d2250", "texture": "none"},
+    "nhl": {"label": "NHL Fantasy", "color": "#0b5b7a", "dark": "#05334a", "texture": "none"},
     "ncaa": {"label": "NCAA Basketball", "color": "#c75a1c", "dark": "#7a320c",
              # hardwood planks
              "texture": "repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 22px, rgba(0,0,0,.06) 22px 44px)"},

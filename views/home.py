@@ -215,6 +215,8 @@ def tools() -> str:
         ("#5b3cc4", "Best Bets", "bets", "Prices that look too generous, and exactly what you'd win."),
         ("#0b6e4f", "Player Stats", "players", "Any player's season, career and last game, plus fun facts."),
         ("#2e7d3a", "NFL Lineups", "football", "Who to start in your ESPN league this week."),
+        ("#1d428a", "NBA Fantasy", "nba-fantasy", "Today's lineup and your chance to win the week."),
+        ("#0b5b7a", "NHL Fantasy", "nhl-fantasy", "Daily lineups, goalie starts and your weekly odds."),
         ("#d0021b", "F1 Fantasy", "f1", "Five drivers, two constructors and your DRS Boost."),
         ("#0f7a86", "Fantasy Premier League", "fpl", "Your best XI and captain, on any budget."),
         ("#c75a1c", "March Madness", "march-madness", "Title odds and a full bracket to fill out."),

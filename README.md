@@ -382,3 +382,13 @@ happened, using only what it would have known beforehand, and grades it on what 
 * **NFL** (last 3 weeks, `ffmc/backtest.py`): our lineup vs the projections-only lineup and the best possible.
 
 Results are recomputed once a day (about 40 seconds the first time) and cached.
+
+## Search engines (SEO)
+
+Streamlit serves one bare HTML page titled "Streamlit" and builds everything in the browser, so crawlers and
+link previews see almost nothing. `seo/patch_index.py` rewrites that page with the Google title, description,
+keywords, link-preview (Open Graph/Twitter) tags, structured data and a plain-HTML summary of every tool inside
+the app's root element (replaced by the app once it loads). `app.py` runs it once per server start; on Render
+it can also run at build time: `pip install -r requirements.txt && python seo/patch_index.py`. Each page also
+sets its own browser/Google title (`PAGE_TITLES` in `app.py`). The sitemap is `static/sitemap.xml`, served at
+`https://montesportslab.com/app/static/sitemap.xml`.

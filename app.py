@@ -24,6 +24,33 @@ SHORT = {"live": "Live", "bets": "Bets", "football": "NFL", "march-madness": "Br
          "niche": "Niche"}                            # short labels so all tabs fit across the header
 page = st.navigation(PAGES, position="hidden")
 
+# What browsers and Google show as each page's title.
+PAGE_TITLES = {
+    "": "Best Bets, Live Odds & Fantasy Lineups | Monte Sports Lab",
+    "live": "Live Odds & Scores: DraftKings vs Kalshi | Monte Sports Lab",
+    "bets": "Best Bets Today: Our Picks vs Kalshi | Monte Sports Lab",
+    "football": "Best Fantasy Football Lineup This Week | Monte Sports Lab",
+    "f1": "Best F1 Fantasy Team This Race | Monte Sports Lab",
+    "fpl": "Best FPL Team This Gameweek | Monte Sports Lab",
+    "parlays": "Best Parlay Picks Today | Monte Sports Lab",
+    "niche": "Niche Sports Betting Picks | Monte Sports Lab",
+    "march-madness": "March Madness Bracket Predictions | Monte Sports Lab",
+    "track-record": "Track Record: How Our Picks Did | Monte Sports Lab",
+    "how-it-works": "How It Works: 1,000,000 Simulations | Monte Sports Lab",
+}
+st.set_page_config(page_title=PAGE_TITLES.get(page.url_path, "Monte Sports Lab"))
+
+
+@st.cache_resource
+def _seo_tags() -> bool:
+    """Write the search/link-preview tags into Streamlit's page once per server start (see seo/patch_index.py)."""
+    from seo.patch_index import main
+    main()
+    return True
+
+
+_seo_tags()
+
 apply_site_css()
 
 with st.container(key="site_header"):

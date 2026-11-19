@@ -1,6 +1,9 @@
 [client]
 toolbarMode = "minimal"
 
+[server]
+enableStaticServing = true   # serves ./static (the sitemap) at /app/static/
+
 [browser]
 gatherUsageStats = false
 

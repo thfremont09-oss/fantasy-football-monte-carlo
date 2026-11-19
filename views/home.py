@@ -213,6 +213,7 @@ def tools() -> str:
     items = [
         ("#1f6feb", "Live Odds", "live", "Every game today with DraftKings, Kalshi and our own odds."),
         ("#5b3cc4", "Best Bets", "bets", "Prices that look too generous, and exactly what you'd win."),
+        ("#0b6e4f", "Player Stats", "players", "Any player's season, career and last game, plus fun facts."),
         ("#2e7d3a", "NFL Lineups", "football", "Who to start in your ESPN league this week."),
         ("#d0021b", "F1 Fantasy", "f1", "Five drivers, two constructors and your DRS Boost."),
         ("#0f7a86", "Fantasy Premier League", "fpl", "Your best XI and captain, on any budget."),

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-APP_VERSION = "2026-11-19b"  # bump on each release so you can tell which version is live
+APP_VERSION = "2026-11-19c"  # bump on each release so you can tell which version is live
 
 NAVY = "#0c1a2b"
 SHADOW = "none"
@@ -28,6 +28,7 @@ SPORTS = {
     "f1": {"label": "Formula 1", "color": "#d0021b", "dark": "#5c000b",
            # chequered flag
            "texture": "repeating-conic-gradient(rgba(255,255,255,.07) 0 25%, transparent 0 50%) 0 0 / 26px 26px"},
+    "stats": {"label": "Player stats", "color": "#0b6e4f", "dark": "#053a2a", "texture": "none"},
     "edge": {"label": "Our sims vs Kalshi", "color": "#5b3cc4", "dark": "#24165f", "texture": "none"},
     "lab": {"label": "The Lab", "color": "#c0392b", "dark": "#7a1f16", "texture": "none"},
     "bets": {"label": "DraftKings + Kalshi", "color": "#5b3cc4", "dark": "#24165f",
@@ -122,13 +123,17 @@ a, button {{ touch-action: manipulation; }}
 /* inline links on desktop */
 .st-key-nav_inline {{ gap: 0.25rem !important; justify-content: flex-end; }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ background: none !important; border-radius: 0;
-  border-bottom: 3px solid transparent; border-top: 3px solid transparent; padding: 0 0.8rem;
+  border-bottom: 3px solid transparent; border-top: 3px solid transparent; padding: 0 .5rem;
   height: 76px; min-height: 76px; display: flex; align-items: center; }}   /* tap area = the full height of the navy bar */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] p {{ color: #c9d3df !important; font-weight: 600; font-size: .95rem; }}
 /* text-only links, like a news site's section nav (and room for every section) */
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] [data-testid="stIconMaterial"],
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] > span:first-child:not(:only-child) {{ display: none !important; }}
-@media (max-width: 1250px) {{ .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ padding: 0 .55rem; }} }}
+@media (max-width: 1250px) {{ .st-key-nav_inline a[data-testid="stPageLink-NavLink"] {{ padding: 0 .4rem; }} }}
+@media (min-width: 1081px) {{
+  [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 0 0 auto !important; width: auto !important; }}
+  [data-testid="stColumn"]:has(.st-key-nav_col) {{ flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }}
+  .st-key-nav_inline {{ flex-wrap: nowrap !important; }} }}
 .st-key-nav_inline a[data-testid="stPageLink-NavLink"] span {{ color: #c9d3df !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] {{ border-bottom-color: #f2b134 !important; }}
 [class*="st-key-navlink_on"] a[data-testid="stPageLink-NavLink"] p {{ color: #fff !important; }}
@@ -146,8 +151,9 @@ a, button {{ touch-action: manipulation; }}
 .st-key-theme_col button * {{ color: rgba(201,211,223,.55) !important; font-size: 1.05rem; }}
 .st-key-theme_col iframe {{ display: none; }}
 @media (hover: hover) {{ .st-key-theme_col button:hover * {{ color: #fff !important; }} }}
-@media (min-width: 900px) {{ [data-testid="stColumn"]:has(.st-key-menu_col) {{ display: none !important; }} }}
-@media (max-width: 899px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
+/* the tabs need about 1080px; narrower than that, the Menu button takes over */
+@media (min-width: 1081px) {{ [data-testid="stColumn"]:has(.st-key-menu_col) {{ display: none !important; }} }}
+@media (max-width: 1080px) {{ [data-testid="stColumn"]:has(.st-key-nav_col) {{ display: none !important; }}
   [data-testid="stColumn"]:has(.st-key-brand) {{ flex: 1 1 auto !important; width: auto !important; }} }}
 .st-key-brand p {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 @media (max-width: 520px) {{ .st-key-brand p {{ font-size: 1.18rem !important; letter-spacing: -.01em; gap: .5rem; }}

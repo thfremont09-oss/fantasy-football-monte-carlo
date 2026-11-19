@@ -62,6 +62,17 @@ PAGES: list[Page] = [
           "DraftKings moneyline, spread and total for comparison",
           "Graded every day on the public track record"],
          ["best-bets-today", "implied-probability-and-expected-value", "kalshi-vs-draftkings"], "Best bets"),
+    Page("players", "Player Stats: Season, Career & Last Game | Monte Sports Lab",
+         "Search any NFL, NBA, WNBA, NHL, MLB, college or soccer player for stats this season, their career "
+         "totals, their last game and live game, plus fun facts.",
+         "Player stats",
+         "Look up any player and see their numbers this season, over their whole career and in their last game, "
+         "a live stat line while they're playing, and the most interesting things in their numbers: season "
+         "highs, streaks, home and road splits and the milestones they're closing in on.",
+         ["NFL, NBA, WNBA, NHL, MLB, college football and basketball, and soccer",
+          "This season, career and last game side by side",
+          "Live stats during a game", "Season highs, streaks and milestones"],
+         ["best-fantasy-football-lineup", "best-fpl-team-this-gameweek"], "Player stats"),
     Page("football", "Best Fantasy Football Lineup This Week | Monte Sports Lab",
          "Who to start this week: connect your ESPN fantasy football league for your best lineup and your chance to beat this week's opponent, from 1,000,000 simulations.",
          "Best fantasy football lineup this week",

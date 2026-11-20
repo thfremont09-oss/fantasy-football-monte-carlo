@@ -351,9 +351,27 @@ MANIFEST = json.dumps({
 
 # ---------------------------------------------------------------- Starlette routes
 
+def warm_ratings() -> None:
+    """Fit every league's team ratings in the background when the server starts (and again each day), so the
+    first visitor to Live Odds or Best Bets doesn't wait for a season of results to download."""
+    if os.environ.get("MSL_NO_SNAPSHOT"):
+        return
+
+    def loop():
+        from ffmc import live, ratings
+        while True:
+            for lg in live.LEAGUES:
+                if lg[0] not in ("Tennis", "MMA"):
+                    ratings.get(lg[1])
+            time.sleep(3 * 3600)
+    threading.Thread(target=loop, daemon=True, name="warm-ratings").start()
+
+
 def routes() -> list:
     from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
     from starlette.routing import Route
+
+    warm_ratings()
 
     no_cache = {"Cache-Control": "no-cache"}
     day = {"Cache-Control": "public, max-age=86400"}

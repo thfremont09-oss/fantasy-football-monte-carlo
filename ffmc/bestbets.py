@@ -210,6 +210,18 @@ class Edge:
 
 
 MIN_GAMES = 8              # teams need this many games played: early-season records say too little
+MAX_DISAGREEMENT = 0.25    # further than this from both Kalshi and DraftKings, and it's our blind spot, not an edge
+
+
+def too_far(g: Game, i: int, ours: float, kalshi: float | None) -> bool:
+    """True when our chance is more than 25 points from Kalshi's and from DraftKings' (when it has a line).
+
+    A gap that big almost always means the model is missing something (an injury, a backup quarterback, a team
+    from a lower division with an inflated record), so it isn't offered as a bet."""
+    fair = g.dk_fair()
+    far_kalshi = kalshi is not None and abs(ours - kalshi) > MAX_DISAGREEMENT
+    far_dk = fair is None or len(fair) <= i or abs(ours - fair[i]) > MAX_DISAGREEMENT
+    return far_kalshi and far_dk
 
 
 def model_edges(games: list[Game], ours, top: int = 12) -> list[Edge]:
@@ -229,6 +241,8 @@ def model_edges(games: list[Game], ours, top: int = 12) -> list[Edge]:
             continue
         for s, p in ((g.sides[0], mine.away), (g.sides[1], mine.home)):
             if s.kalshi is None or s.kalshi_ask is None or not 0.05 <= s.kalshi <= 0.95:
+                continue
+            if too_far(g, 0 if s is g.sides[0] else 1, p, s.kalshi):
                 continue
             e = Edge(g, s, p, s.kalshi, s.kalshi_ask)
             if e.gap > 0:

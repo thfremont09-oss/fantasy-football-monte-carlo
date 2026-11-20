@@ -194,7 +194,9 @@ GUIDES: list[Guide] = [
            "our best bets are underdogs that will lose more often than they win. They're on the list because the "
            "payout is bigger than their risk."]),
          ("How the simulation works",
-          ["For every game that hasn't started, we build each team's strength from its record and home advantage, "
+          ["For every game that hasn't started, we rate each team from this season's results, who it played and by "
+           "how much, so a 9-2 record against weak teams counts for less than 9-2 against strong ones. Add home "
+           "advantage, "
            "then play the game a million times. Football and basketball use a scoring-margin model; hockey, soccer "
            "and baseball use goal and run counts. The share of simulated wins is our chance.",
            "We skip teams with fewer than 8 games played, because early-season records say too little, and prices "
@@ -261,7 +263,8 @@ GUIDES: list[Guide] = [
            "Our Live Odds page lines them up on every card: score, DraftKings moneyline, Kalshi price and our own "
            "simulated chance."]),
          ("Where our numbers fit in",
-          ["A third opinion helps. We simulate each game a million times from team records and home advantage. "
+          ["A third opinion helps. We simulate each game a million times from team ratings built on this season's "
+           "results (strength of schedule included) and home advantage. "
            "When our chance is well above both prices, the game shows up on Best Bets."])],
         [("Is Kalshi legal for sports?",
           "Kalshi is a US exchange regulated by the CFTC. Availability of sports contracts can depend on your "

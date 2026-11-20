@@ -237,7 +237,7 @@ def bets_record(days: int = 5, per_day: int = 12, cache_dir=".ffmc_cache", now: 
         if not got:
             continue
         mid, ask = got
-        if not 0.05 <= mid <= 0.95 or p - ask <= 0:
+        if not 0.05 <= mid <= 0.95 or p - ask <= 0 or bestbets.too_far(g, i, p, mid):
             continue
         edges_by_day.setdefault(g.start.astimezone(ET).date(), []).append((p - ask, g, i, s, p, mid, ask))
     for day, edges in sorted(edges_by_day.items()):

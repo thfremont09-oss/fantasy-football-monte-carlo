@@ -224,6 +224,11 @@ def sim_vs_kalshi(g: live.Game, mine: winprob.OwnOdds | None) -> str:
     s, p = max(pairs, key=lambda x: x[1] - x[0].kalshi)          # the side we're most positive on
     gap = (p - s.kalshi) * 100
     name = html.escape(s.short or s.name)
+    if g.state == "pre" and bestbets.too_far(g, 0 if s is g.sides[0] else 1, p, s.kalshi):
+        return (f'<div class="lv-vs"><b>Our model can\'t judge this one:</b> it has {name} at {p * 100:.0f}%, '
+                f'the market at {s.kalshi * 100:.0f}%. A gap that big usually means the market knows something our '
+                f'model doesn\'t (injuries, a backup starter, a team stepping up a level), so it\'s left off '
+                f'Best Bets.</div>')
     if abs(gap) < 3:
         fav, fp = max(pairs, key=lambda x: x[1])
         return (f'<div class="lv-vs"><b>Our sims agree with Kalshi:</b> {html.escape(fav.short or fav.name)} '
@@ -690,7 +695,9 @@ def render_best_bets() -> None:
         st.markdown(f'<div class="lv-grid">{"".join(edge_card(e, stake) for e in edges)}</div>',
                     unsafe_allow_html=True)
     st.caption(f"Updated {fetched.astimezone(ET):%I:%M %p} ET. Each game is played 1,000,000 times by our model, "
-               "which knows each team's record, home advantage and nothing else; Kalshi's price reflects everything "
-               "the market knows (injuries, lineups, form). So a big gap can mean value, or that the market knows "
-               "something a record can't show. Teams with fewer than 8 games played are left out. For information "
+               "which rates every team from this season's results (who it played and by how much) plus home "
+               "advantage, and nothing else; Kalshi's price reflects everything the market knows (injuries, lineups, "
+               "form). So a gap can mean value, or that the market knows something results can't show. Teams with "
+               "fewer than 8 games played are left out, and so are games where we're more than 25 points away from "
+               "both Kalshi and DraftKings (that's our blind spot, not an edge). For information "
                "only, not betting advice. Must be 21+; if gambling stops being fun, call 1-800-GAMBLER.")

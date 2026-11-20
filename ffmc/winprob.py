@@ -1,8 +1,9 @@
 """Our own Monte Carlo win chances for a game, to compare with Kalshi and DraftKings.
 
-It deliberately knows only a little: each side's record this season, home advantage,
-and (once the game starts) the score and the clock. It then plays the rest of the
-game out 1,000,000 times:
+Before the game it uses team ratings built from every result this season (who each team played and by
+how much, see ratings.py), or each side's record when a team hasn't played enough to be rated, plus home
+advantage; once the game starts, also the score and the clock. It then plays the rest of the game out
+1,000,000 times:
 
 * Football and basketball: the final margin is the current margin plus the
   expected edge for the time left, plus random swings that shrink as the clock
@@ -24,6 +25,7 @@ from statistics import NormalDist
 import numpy as np
 
 N_SIMS = 1_000_000
+USE_RATINGS = True          # strength-of-schedule ratings (tests switch this off to stay offline)
 
 # league: (spread of the final margin over a full game, periods, seconds per period, home edge in log-odds,
 #          games of shrinkage toward .500 for the records)
@@ -95,10 +97,34 @@ def _tiebreak(rng, ties: np.ndarray, pre_home: float, n: int) -> np.ndarray:
     return ties & (rng.random(n) < 0.5 + 0.5 * (pre_home - 0.5))
 
 
+def rated_margin(g) -> tuple[float, float] | None:
+    """(expected home margin, typical miss) from team ratings, using only games before this one."""
+    if not USE_RATINGS:
+        return None
+    from . import ratings
+    start = getattr(g, "start", None)
+    as_of = start.astimezone(ratings.live.EASTERN).date() if start else None
+    r = ratings.get(g.league, as_of)
+    if r is None:
+        return None
+    m = r.margin(g.sides[1].name, g.sides[0].name)
+    return None if m is None else (m, r.resid_sd)
+
+
+def _pre_from_ratings(g, fallback_sd: float) -> float | None:
+    rm = rated_margin(g)
+    if rm is None:
+        return None
+    m, sd = rm
+    return NormalDist().cdf(m / max(sd, fallback_sd * 0.5))
+
+
 def margin_sport(g, rng, n: int) -> OwnOdds:
     sd, periods, length, edge, shrink = MARGIN[g.league]
     away, home = g.sides
-    pre = _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
+    rm = rated_margin(g)
+    pre = NormalDist().cdf(rm[0] / sd) if rm else \
+        _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
     full = periods * length
     if g.state == "in":
         left = g.clock + max(0, periods - g.period) * length if g.period <= periods else g.clock
@@ -139,7 +165,7 @@ def _solve_delta(pre: float, base_h: float, base_a: float) -> float:
 def hockey(g, rng, n: int) -> OwnOdds:
     rate, periods, length, edge, shrink = HOCKEY[g.league]
     away, home = g.sides
-    pre = _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
+    pre = _pre_from_ratings(g, 2.4) or _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
     delta = _solve_delta(pre, rate, rate)
     full = periods * length
     if g.state == "in":
@@ -174,7 +200,7 @@ def _innings_left(g) -> tuple[float, float]:
 def baseball(g, rng, n: int) -> OwnOdds:
     rate, innings, edge, shrink = BASEBALL[g.league]
     away, home = g.sides
-    pre = _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
+    pre = _pre_from_ratings(g, 4.0) or _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
     delta = _solve_delta(pre, rate, rate)
     a_left, h_left = _innings_left(g)
     live = g.state == "in"
@@ -188,7 +214,15 @@ def baseball(g, rng, n: int) -> OwnOdds:
 
 def soccer(g, rng, n: int) -> OwnOdds:
     away, home = g.sides
-    delta = _strength(home.record, SOCCER_SHRINK, "soccer") - _strength(away.record, SOCCER_SHRINK, "soccer")
+    rm = rated_margin(g)
+    if rm:
+        # pick the strength gap whose expected goal difference matches the rated margin:
+        # H*y - A/y = m, with y = e^(delta/2)
+        m = rm[0]
+        y = (m + math.sqrt(m * m + 4 * SOCCER_HOME * SOCCER_AWAY)) / (2 * SOCCER_HOME)
+        delta = 2 * math.log(y)
+    else:
+        delta = _strength(home.record, SOCCER_SHRINK, "soccer") - _strength(away.record, SOCCER_SHRINK, "soccer")
     if g.state == "in":
         frac = min(max((5400 - g.clock) / 5400, 0.02), 1.0)
     else:
@@ -200,10 +234,14 @@ def soccer(g, rng, n: int) -> OwnOdds:
 
 
 def _basis(g, frac: float) -> str:
-    recs = " and ".join(s.record for s in g.sides if s.record) or "no records yet"
+    if rated_margin(g):
+        what = "team ratings from this season's results (who each side played and by how much)"
+    else:
+        recs = " and ".join(s.record for s in g.sides if s.record) or "no records yet"
+        what = f"records ({recs})"
     if g.state == "in":
-        return f"records ({recs}), home advantage, the score and about {frac:.0%} of the game left"
-    return f"records ({recs}) and home advantage"
+        return f"{what}, home advantage, the score and about {frac:.0%} of the game left"
+    return f"{what} and home advantage"
 
 
 def own_odds(g, n_sims: int = N_SIMS, seed: int = 11) -> OwnOdds | None:

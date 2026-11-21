@@ -91,7 +91,7 @@ def loading_screen(color: str):
 
 
 def get_legs(color: str):
-    """One shared scan of the next 3 days for everyone on the site, refreshed every 10 minutes."""
+    """One shared scan of the next 2 days for everyone on the site, refreshed every 10 minutes."""
     key = int(time.time() // 600)
     store = _store()
     if key not in store:

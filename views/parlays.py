@@ -25,7 +25,7 @@ with st.container(key="settings"):
         a1, a2 = st.columns(2, gap="large")
         rank_by = a1.pills("Rank by", ["Best value", "Most likely to hit", "Biggest payout"], default="Best value",
                            required=True, key="pl_rank")
-        days = a2.select_slider("Games starting within", [1, 2, 3], value=2, key="pl_days",
+        days = a2.select_slider("Games starting within", [1, 2], value=2, key="pl_days",
                                 format_func=lambda d: f"{d} day{'s' if d > 1 else ''}")
         markets = a1.multiselect("Bet types", list(pl.MARKETS), default=list(pl.MARKETS))
         leg_prob = a2.slider("Each leg's chance to win", 0.05, 0.95, (0.15, 0.92), 0.01, format="%.2f",

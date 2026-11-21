@@ -37,7 +37,9 @@ ESPN = "https://site.api.espn.com/apis/site/v2/sports/{path}/scoreboard"
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 KALSHI_FEE = 0.07          # taker fee: 0.07 x price x (1 - price) per contract
 MAX_SPREAD = 0.30          # keep Kalshi markets with a bid/ask gap up to 30 cents (pages filter tighter)
-SCAN_DAYS = 3              # one shared scan covers the next 3 days (memory: the server has 512 MB in all)
+SCAN_DAYS = 2              # one shared scan covers the next 2 days (memory: the server has 512 MB in all)
+LEG_P_RANGE = (0.04, 0.96)  # legs outside this can't be picked on any page, so they aren't kept
+KALSHI_ONLY = ("Kalshi",)    # shared, not one list per leg
 WINNER_SERIES = re.compile(r"(GAME|MATCH|FIGHT|BOUT)$")
 
 # ESPN leagues that carry DraftKings odds: (sport, league, path)
@@ -78,7 +80,7 @@ class Leg:
     dk_odds: int | None = None   # DraftKings American odds
     kalshi_ask: float | None = None
     kalshi_mid: float | None = None
-    sources: list[str] = field(default_factory=list)
+    sources: tuple[str, ...] | list[str] = ()
     spread: float = 0.0          # Kalshi bid/ask gap (0 for DraftKings): wider = thinner market
 
     @property
@@ -374,7 +376,7 @@ def kalshi_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = Non
             spread = ask - bid
             kappa = max(25.0, 150 - 800 * spread)
             base = dict(game=game, sport=tags[0] if tags else "Other", league=league, matchup=matchup, start=start,
-                        market=kind, sources=["Kalshi"], spread=spread)
+                        market=kind, sources=KALSHI_ONLY, spread=spread)
             if winner:
                 p = mid / total_mid if len(quotes) == len(ms) and len(quotes) >= 2 else mid
                 label = f"{name} win" if name.lower() not in ("tie", "draw") else "Draw"
@@ -384,10 +386,13 @@ def kalshi_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = Non
             title = re.sub(r"\?$", "", m.get("title") or name)
             if m.get("yes_sub_title") and m["yes_sub_title"] not in title:
                 title = f"{title}: {m['yes_sub_title']}"
-            legs.append(Leg(key=f"kalshi:{m['ticker']}:yes", pick=title, p=mid, kappa=kappa,
-                            kalshi_ask=ask, kalshi_mid=mid, **base))
-            legs.append(Leg(key=f"kalshi:{m['ticker']}:no", pick=f"NOT {title}", p=1 - mid, kappa=kappa,
-                            kalshi_ask=1 - bid, kalshi_mid=1 - mid, **base))
+            lo, hi = LEG_P_RANGE
+            if lo <= mid <= hi:
+                legs.append(Leg(key=f"kalshi:{m['ticker']}:yes", pick=title, p=mid, kappa=kappa,
+                                kalshi_ask=ask, kalshi_mid=mid, **base))
+            if lo <= 1 - mid <= hi:
+                legs.append(Leg(key=f"kalshi:{m['ticker']}:no", pick=f"NOT {title}", p=1 - mid, kappa=kappa,
+                                kalshi_ask=1 - bid, kalshi_mid=1 - mid, **base))
     stats["leagues"] = len(leagues)
     return legs, stats
 

@@ -26,7 +26,7 @@ with st.container(key="settings"):
                                                   "Europe's top soccer; 5 is the deepest end, like Japanese women's tennis.")
     st.caption(pl.NICHE_LEVELS[level][2] + ".")
     n1, n2 = st.columns(2, gap="large")
-    days = n1.select_slider("Games starting within", [1, 2, 3], value=3, key="ni_days",
+    days = n1.select_slider("Games starting within", [1, 2], value=2, key="ni_days",
                             format_func=lambda d: f"{d} day{'s' if d > 1 else ''}")
     max_gap = n2.select_slider("Market depth", [0.05, 0.10, 0.15, 0.20, 0.30], value=0.20, key="ni_gap",
                                format_func=lambda g: f"bid/ask gap up to {g * 100:.0f}¢",

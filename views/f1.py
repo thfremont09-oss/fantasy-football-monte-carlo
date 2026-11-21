@@ -13,13 +13,14 @@ import streamlit as st
 from ffmc import f1
 from ffmc.http import APIError
 from ffmc.ui import SPORTS, banner
+from ffmc.mem import heavy
 
 COLOR = SPORTS["f1"]["color"]
 OBJECTIVES = {"mean": "Most expected points", "floor": "Safe floor (avoid a bad weekend)",
               "ceiling": "Big ceiling (swing for a huge score)"}
 
 
-@st.cache_data(ttl=1800, show_spinner="Loading prices from F1 Fantasy, results and race odds...")
+@st.cache_data(ttl=1800, max_entries=3, show_spinner="Loading prices from F1 Fantasy, results and race odds...")
 def load() -> tuple[f1.Weekend, list[f1.Asset]]:
     return f1.load_weekend()
 
@@ -34,11 +35,12 @@ def simulate(weekend, assets, settings: tuple, progress=None) -> f1.Result:
     key = (weekend.gameday, dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H"), settings)
     store = saved_results()
     if key not in store:
-        if len(store) >= 30:
+        if len(store) >= 12:
             store.pop(next(iter(store)))
         n_sims, budget, objective, mult, must, banned, seed = settings
-        store[key] = f1.run(weekend, assets, n_sims, budget, objective, mult, seed, set(must), set(banned),
-                            progress=progress)
+        with heavy():                            # one big job at a time on the 512 MB server
+            store[key] = f1.run(weekend, assets, n_sims, budget, objective, mult, seed, set(must), set(banned),
+                                progress=progress)
     return store[key]
 
 

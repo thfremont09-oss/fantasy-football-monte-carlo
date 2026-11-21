@@ -60,22 +60,22 @@ CSS = """<style>
 </style>"""
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, max_entries=100, show_spinner=False)
 def search(q: str) -> list[players.Player]:
     return players.search(q)
 
 
-@st.cache_data(ttl=12 * 3600, show_spinner=False)
+@st.cache_data(ttl=12 * 3600, max_entries=100, show_spinner=False)
 def suggestions() -> list[players.Suggestion]:
     return players.suggestions()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, max_entries=100, show_spinner=False)
 def profile(p: players.Player) -> players.Profile:
     return players.profile(p)
 
 
-@st.cache_data(ttl=20, show_spinner=False)
+@st.cache_data(ttl=20, max_entries=100, show_spinner=False)
 def live(p: players.Player) -> players.LiveLine | None:
     from ffmc.http import CachedJSON
     return players.live_line(p, CachedJSON())

@@ -120,10 +120,10 @@ PAGES: list[Page] = [
          ["best-fpl-team-this-gameweek"], "FPL"),
     Page("parlays", "Best Parlay Picks Today | Monte Sports Lab",
          "Find the best parlays for your risk and payout from 80,000+ DraftKings and Kalshi markets, each tested on "
-         "1,000,000 simulated slates.",
+         "500,000 simulated slates.",
          "Best parlay picks today",
          "Tell us how much risk you want and what payout you're after, and we search tens of thousands of DraftKings "
-         "and Kalshi markets for the parlays with the best chance of hitting, each one checked against a million "
+         "and Kalshi markets for the parlays with the best chance of hitting, each one checked against 500,000 "
          "simulated slates.",
          ["Choose your risk and target payout", "DraftKings and Kalshi markets", "True hit chance for every parlay"],
          ["how-parlays-work"], "Parlays"),
@@ -132,7 +132,7 @@ PAGES: list[Page] = [
          "and payouts.",
          "Niche sports picks",
          "Off the beaten path: the most obscure markets on the board, from darts and table tennis to lower-league "
-         "soccer, run through the same million-slate simulation as our parlays.",
+         "soccer, run through the same 500,000-slate simulation as our parlays.",
          ["Obscure leagues and sports", "Simulated hit chance for every pick"],
          ["how-parlays-work"], "Niche sports"),
     Page("march-madness", "March Madness Bracket Predictions | Monte Sports Lab",
@@ -325,7 +325,7 @@ GUIDES: list[Guide] = [
         ("bets", "See today's best-value bets"), "Expected value"),
     Guide(
         "how-parlays-work", "How Parlays Work & How to Pick Better Ones | Monte Sports Lab",
-        "How parlays pay out, why they're hard to hit, and how to pick better ones, with payout math for -110 legs and a tool that tests parlays 1,000,000 times.",
+        "How parlays pay out, why they're hard to hit, and how to pick better ones, with payout math for -110 legs and a tool that tests parlays 500,000 times.",
         "How parlays work, and how to pick better ones",
         "A parlay joins several bets into one. Every leg has to win, and in return the payouts multiply. That's "
         "what makes them exciting, and what makes them lose so often.",
@@ -339,8 +339,8 @@ GUIDES: list[Guide] = [
            "parlays."]),
          ("Picking better parlays",
           ["Use fewer legs, and only legs where the price looks generous. Our Parlay Lab searches tens of thousands "
-           "of DraftKings and Kalshi markets for your chosen risk and payout, then checks every candidate against a "
-           "million simulated slates to report its real chance of hitting."])],
+           "of DraftKings and Kalshi markets for your chosen risk and payout, then checks every candidate against "
+           "500,000 simulated slates to report its real chance of hitting."])],
         [("How many legs should a parlay have?",
           "Fewer is usually better: two or three legs keep the hit rate reasonable."),
          ("What happens if one leg pushes?",

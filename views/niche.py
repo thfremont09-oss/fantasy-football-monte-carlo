@@ -14,7 +14,7 @@ COLOR = SPORTS["niche"]["color"]
 banner("niche", "Niche Sports",
        "The deep end of the board: Russian table tennis, Bosnian basketball, Valorant, women's cricket, Japanese "
        "cup soccer, winter-league baseball and whatever else Kalshi lists this week. Every league is scored for how "
-       "obscure it is; pick how deep to go and the million-slate simulation finds the best bets.",
+       "obscure it is; pick how deep to go and the 500,000-slate simulation finds the best bets.",
        chips=["Ranked by obscurity", "Kalshi + DraftKings", "Singles and parlays"])
 
 all_legs, stats, loaded_at = ui.get_legs(COLOR)
@@ -26,7 +26,7 @@ with st.container(key="settings"):
                                                   "Europe's top soccer; 5 is the deepest end, like Japanese women's tennis.")
     st.caption(pl.NICHE_LEVELS[level][2] + ".")
     n1, n2 = st.columns(2, gap="large")
-    days = n1.select_slider("Games starting within", [1, 2, 3, 5, 7], value=7, key="ni_days",
+    days = n1.select_slider("Games starting within", [1, 2, 3], value=3, key="ni_days",
                             format_func=lambda d: f"{d} day{'s' if d > 1 else ''}")
     max_gap = n2.select_slider("Market depth", [0.05, 0.10, 0.15, 0.20, 0.30], value=0.20, key="ni_gap",
                                format_func=lambda g: f"bid/ask gap up to {g * 100:.0f}¢",
@@ -42,7 +42,7 @@ with st.container(key="settings"):
         markets = a1.multiselect("Bet types", list(pl.MARKETS), default=list(pl.MARKETS), key="ni_markets")
         leg_prob = a2.slider("Each leg's chance to win", 0.05, 0.95, (0.10, 0.92), 0.01, format="%.2f", key="ni_prob")
         n_show = a2.slider("Bets to show", 3, 20, 10, key="ni_show")
-        n_sims = a2.select_slider("Simulated slates", [100_000, 250_000, 1_000_000], value=1_000_000,
+        n_sims = a2.select_slider("Simulated slates", [100_000, 250_000, 500_000], value=500_000,
                                   format_func=lambda n: f"{n:,}", key="ni_sims")
 
 min_score = pl.NICHE_LEVELS[level][1]

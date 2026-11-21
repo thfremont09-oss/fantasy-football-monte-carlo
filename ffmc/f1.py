@@ -518,7 +518,7 @@ def run(weekend: Weekend, assets: list[Asset], n_sims: int = 1_000_000, budget: 
     pit_logw = pit
     tally = Tally(len(ordered), lo=-60, hi=160, step=0.5)
     sample: list[np.ndarray] = []
-    for i, (size, s) in enumerate(batches(n_sims, seed, 50_000)):
+    for i, (size, s) in enumerate(batches(n_sims, seed, 20_000)):
         pts = simulate_batch(np.random.default_rng(s), drivers, teams, team_of, size, weekend.sprint, pit_logw)
         tally.add(pts)
         if i == 0:
@@ -539,7 +539,7 @@ def run(weekend: Weekend, assets: list[Asset], n_sims: int = 1_000_000, budget: 
         cands.sort(key=lambda t: -np.percentile(team_points(sample[0] + shift, t, boost_mult), q))
     team = cands[0]
     team_tally = Tally(1, lo=-100, hi=500, step=0.5)
-    for size, s in batches(n_sims, seed, 50_000):
+    for size, s in batches(n_sims, seed, 20_000):
         pts = simulate_batch(np.random.default_rng(s), drivers, teams, team_of, size, weekend.sprint, pit_logw)
         team_tally.add(team_points(pts + shift, team, boost_mult)[:, None])
     if progress:

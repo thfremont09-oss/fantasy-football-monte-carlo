@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from . import parlay as pl
+from .mem import heavy, on_cleanup
 from .ui import SPORTS
 
 ET = ZoneInfo("America/New_York")
@@ -26,13 +27,21 @@ FUN_LINES = [
     "Lining up DraftKings and Kalshi side by side...",
     "Looking for Russian table tennis and Bosnian basketball...",
     "Fun fact: every extra leg multiplies the house's edge.",
-    "Rolling a million possible weekends...",
+    "Rolling half a million possible weekends...",
 ]
 
 
 @st.cache_resource
 def _store() -> dict:
-    return {}
+    store: dict = {}
+
+    def drop_stale():
+        """The scan is good for 10 minutes; after that nobody can use it, so free its memory right away."""
+        now_key = int(time.time() // 600)
+        for k in [k for k in list(store) if k != now_key]:
+            store.pop(k, None)
+    on_cleanup(drop_stale)
+    return store
 
 
 def loading_screen(color: str):
@@ -82,18 +91,20 @@ def loading_screen(color: str):
 
 
 def get_legs(color: str):
-    """One shared scan of the next 7 days for everyone on the site, refreshed every 10 minutes."""
+    """One shared scan of the next 3 days for everyone on the site, refreshed every 10 minutes."""
     key = int(time.time() // 600)
     store = _store()
     if key not in store:
         holder = st.empty()
         with holder.container():
             update = loading_screen(color)
-            legs, stats = pl.load_legs(pl.SCAN_DAYS, progress=update)
+            with heavy():
+                if key not in store:              # someone else may have loaded it while we waited
+                    store.clear()                 # drop the old scan before building the new one
+                    legs, stats = pl.load_legs(pl.SCAN_DAYS, progress=update)
+                    store[key] = (legs, stats, dt.datetime.now(dt.timezone.utc))
         holder.empty()
-        store.clear()
-        store[key] = (legs, stats, dt.datetime.now(dt.timezone.utc))
-    return store[key]
+    return store.get(key) or next(iter(store.values()), None) or (pl.load_legs(pl.SCAN_DAYS)[0], {}, dt.datetime.now(dt.timezone.utc))
 
 
 def fmt_start(t: dt.datetime) -> str:
@@ -126,9 +137,10 @@ def run_search(legs: list[pl.Leg], settings: pl.Settings, n_sims: int, params, k
         if st.session_state.get(f"{key}_params") != params:
             bar = st.progress(0.0, text="Searching leg combinations...")
             try:
-                sim = pl.find_parlays(legs, settings, n_sims, seed=7,
-                                      progress=lambda f: bar.progress(f, text=f"Simulating {n_sims:,} slates... "
-                                                                              f"{int(f * n_sims):,} done"))
+                with heavy():
+                    sim = pl.find_parlays(legs, settings, n_sims, seed=7,
+                                          progress=lambda f: bar.progress(f, text=f"Simulating {n_sims:,} slates... "
+                                                                                  f"{int(f * n_sims):,} done"))
             except pl.ParlayError as exc:
                 bar.empty()
                 st.warning(str(exc))

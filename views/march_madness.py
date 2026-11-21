@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from ffmc.mem import heavy
+
 from ffmc import madness as mm
 from ffmc.espn import ESPNClient
 from ffmc.http import APIError
@@ -17,14 +19,16 @@ from ffmc.ui import SPORTS, banner
 BAR_COLOR = SPORTS["ncaa"]["color"]
 
 
-@st.cache_data(ttl=1800, show_spinner="Downloading this season's college basketball scores...")
+@st.cache_data(ttl=1800, max_entries=2, show_spinner="Downloading this season's college basketball scores...")
 def load(season: int, day: dt.date) -> mm.Bracket:   # `day` refreshes the cache daily
-    return mm.load_bracket(ESPNClient(".ffmc_cache"), season)
+    with heavy():
+        return mm.load_bracket(ESPNClient(".ffmc_cache"), season)
 
 
-@st.cache_data(show_spinner="Simulating the tournament 1,000,000 times...")
+@st.cache_data(ttl=3600, max_entries=3, show_spinner="Simulating the tournament 1,000,000 times...")
 def simulate(bracket: mm.Bracket, n_sims: int, seed: int, game_sd: float):
-    return mm.run(bracket, n_sims=n_sims, seed=seed, game_sd=game_sd)
+    with heavy():
+        return mm.run(bracket, n_sims=n_sims, seed=seed, game_sd=game_sd)
 
 
 def label(t: mm.Team) -> str:

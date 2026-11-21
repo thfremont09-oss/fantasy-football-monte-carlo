@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from ffmc import record
+from ffmc.mem import heavy
 from ffmc.live_view import CSS
 from ffmc.ui import APP_VERSION, banner
 
@@ -22,24 +23,28 @@ def money(x: float) -> str:
     return f"{'+' if x >= 0 else '−'}${abs(x):,.2f}"
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
+@st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
 def bets(day: str) -> record.BetsRecord:
-    return record.bets_record(days=7)
+    with heavy():                       # one big job at a time on the 512 MB server
+        return record.bets_record(days=7)
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
+@st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
 def f1_rounds(day: str) -> list[record.F1Round]:
-    return record.f1_record(rounds=6)
+    with heavy():
+        return record.f1_record(rounds=6)
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
+@st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
 def fpl_weeks(day: str) -> list[record.FPLWeek]:
-    return record.fpl_record(weeks=4)
+    with heavy():
+        return record.fpl_record(weeks=4)
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
+@st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
 def nfl_weeks(day: str) -> list[record.NFLWeek]:
-    return record.nfl_record(weeks=3)
+    with heavy():
+        return record.nfl_record(weeks=3)
 
 
 st.markdown(CSS, unsafe_allow_html=True)

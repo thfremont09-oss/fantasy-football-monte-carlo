@@ -241,7 +241,7 @@ def run(bracket: Bracket, n_sims: int = 100_000, seed: int | None = None, game_s
     locked = bracket.results if use_results and not bracket.complete else None
     wins = np.zeros((64, 6))
     done = 0
-    for size, batch_seed in batches(n_sims, seed, batch=100_000):
+    for size, batch_seed in batches(n_sims, seed, batch=25_000):     # small batches: 512 MB server
         wins += advancement(simulate_bracket(win_prob, size, batch_seed, locked)) * size
         done += size
         if progress:

@@ -9,6 +9,7 @@ import streamlit as st
 
 from . import espn_daily as ed
 from .http import APIError
+from .mem import heavy
 from .ui import SPORTS, banner
 
 MODES = ["My ESPN league", "Best possible lineup (any player)", "Pick my players"]
@@ -16,17 +17,18 @@ OPP_COLOR = "#c75a1c"
 N_SIMS = 1_000_000
 
 
-@st.cache_data(ttl=900, show_spinner="Downloading ESPN players and schedules...")
+@st.cache_data(ttl=900, max_entries=2, show_spinner="Downloading ESPN players and schedules...")
 def default_board(sport_key: str) -> ed.Board:
-    return ed.load_default(ed.DailyFantasy(ed.SPORTS[sport_key]))
+    with heavy():
+        return ed.load_default(ed.DailyFantasy(ed.SPORTS[sport_key]))
 
 
-@st.cache_data(ttl=120, show_spinner="Loading your ESPN league...")
+@st.cache_data(ttl=120, max_entries=12, show_spinner="Loading your ESPN league...")
 def league_board(sport_key: str, league_id: str, team_id: int | None, espn_s2: str, swid: str):
     return ed.load_league(ed.DailyFantasy(ed.SPORTS[sport_key], espn_s2=espn_s2, swid=swid), league_id, team_id)
 
 
-@st.cache_data(ttl=600, show_spinner=False, max_entries=50)
+@st.cache_data(ttl=600, show_spinner=False, max_entries=6)
 def outlook(board: ed.Board) -> ed.WeekOutlook:
     return ed.simulate_week(board, N_SIMS)
 

@@ -12,9 +12,9 @@ COLOR = SPORTS["bets"]["color"]
 
 banner("bets", "Parlay Lab",
        "Every DraftKings line ESPN carries and every open Kalshi sports market, from the NFL to college hockey, "
-       "esports and cricket. Set your risk and payout; the lab simulates a million slates and shows the "
+       "esports and cricket. Set your risk and payout; the lab simulates 500,000 slates and shows the "
        "parlays that come out best.",
-       chips=["DraftKings + Kalshi", "80,000+ markets scanned", "1,000,000 simulated slates"])
+       chips=["DraftKings + Kalshi", "80,000+ markets scanned", "500,000 simulated slates"])
 
 # Load the markets first, so the loading screen sits right under the banner.
 all_legs, stats, loaded_at = ui.get_legs(COLOR)
@@ -25,7 +25,7 @@ with st.container(key="settings"):
         a1, a2 = st.columns(2, gap="large")
         rank_by = a1.pills("Rank by", ["Best value", "Most likely to hit", "Biggest payout"], default="Best value",
                            required=True, key="pl_rank")
-        days = a2.select_slider("Games starting within", [1, 2, 3, 5, 7], value=2, key="pl_days",
+        days = a2.select_slider("Games starting within", [1, 2, 3], value=2, key="pl_days",
                                 format_func=lambda d: f"{d} day{'s' if d > 1 else ''}")
         markets = a1.multiselect("Bet types", list(pl.MARKETS), default=list(pl.MARKETS))
         leg_prob = a2.slider("Each leg's chance to win", 0.05, 0.95, (0.15, 0.92), 0.01, format="%.2f",
@@ -34,7 +34,7 @@ with st.container(key="settings"):
                                  help="Legs from the same game depend on each other, so parlays here use at most "
                                       "one leg per game.")
         n_show = a2.slider("Parlays to show", 3, 20, 10)
-        n_sims = a2.select_slider("Simulated slates", [100_000, 250_000, 1_000_000], value=1_000_000,
+        n_sims = a2.select_slider("Simulated slates", [100_000, 250_000, 500_000], value=500_000,
                                   format_func=lambda n: f"{n:,}")
 
 legs = pl.within(all_legs, days, max_spread=0.15)
@@ -64,9 +64,9 @@ with st.expander("How Parlay Lab works"):
    market: winners, spreads, totals, player props and more, both Yes and No.
 2. **Find the real chances.** Each price includes the bookmaker's cut. Removing it gives a fair chance for each
    leg; when DraftKings and Kalshi both list a game, the two are averaged.
-3. **Simulate a million slates.** Those chances are estimates, so each of 1,000 scenarios nudges them a little,
+3. **Simulate 500,000 slates.** Those chances are estimates, so each of 500 scenarios nudges them a little,
    and each scenario plays every game 1,000 times.
-4. **Score every parlay** that fits your risk, payout and legs on the same million slates: how often it hits,
+4. **Score every parlay** that fits your risk, payout and legs on the same 500,000 slates: how often it hits,
    what it pays, and its expected value. The best ones are shown.
 
 **Good to know:** most parlays lose money over time, because every leg carries the bookmaker's cut.

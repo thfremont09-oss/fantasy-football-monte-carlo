@@ -406,7 +406,7 @@ class Result:
 
 
 SELECT_SIMS = 50_000    # simulations used to choose the team; the rest only measure it
-SELECT_CHUNK = 10_000   # simulated gameweeks held in memory at once
+SELECT_CHUNK = 4_000    # simulated gameweeks held in memory at once (small: the server has 512 MB in all)
 
 
 def run(gw: Gameweek, players: list[FPLPlayer], n_sims: int = 25_000, seed: int | None = None,

@@ -35,7 +35,7 @@ banner("live", "Live Odds",
        "and live odds chart.",
        chips=["DraftKings · Kalshi · our Monte Carlo", "NFL · NBA · NHL · MLB · college", "Europe's top soccer + more"])
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=86400, max_entries=4, show_spinner=False)
 def search_options() -> tuple[list[str], list]:
     """Every team and league name, for the type-ahead search box."""
     index = live.team_index()

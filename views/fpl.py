@@ -12,16 +12,17 @@ import streamlit as st
 
 from ffmc import fpl
 from ffmc.ui import SPORTS, banner
+from ffmc.mem import heavy
 
 COLOR = SPORTS["epl"]["color"]
 
 
-@st.cache_data(ttl=1800, show_spinner="Loading this gameweek from the official FPL site...")
+@st.cache_data(ttl=1800, max_entries=3, show_spinner="Loading this gameweek from the official FPL site...")
 def load() -> fpl.Gameweek:
     return fpl.load_gameweek(fpl.FPLClient(".ffmc_cache"))
 
 
-@st.cache_data(ttl=600, show_spinner="Loading your FPL team...")
+@st.cache_data(ttl=600, max_entries=12, show_spinner="Loading your FPL team...")
 def load_team(gw: fpl.Gameweek, team_id: int):
     return fpl.load_squad(fpl.FPLClient(".ffmc_cache"), gw, team_id)
 
@@ -38,9 +39,11 @@ def simulate(gw: fpl.Gameweek, n_sims: int, seed: int, squad: tuple[int, ...] | 
     key = (gw.id, gw.deadline, dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H"), n_sims, seed, squad, budget)
     store = saved_results()
     if key not in store:
-        if len(store) >= 30:                     # keep memory in check
+        if len(store) >= 12:                     # keep memory in check
             store.pop(next(iter(store)))
-        store[key] = fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None, budget, progress=progress)
+        with heavy():                            # one big job at a time on the 512 MB server
+            store[key] = fpl.run(gw, gw.players, n_sims, seed, list(squad) if squad else None, budget,
+                                 progress=progress)
     return store[key]
 
 

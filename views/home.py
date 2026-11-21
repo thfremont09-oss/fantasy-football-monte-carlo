@@ -17,7 +17,7 @@ from ffmc.ui import APP_VERSION
 esc = html.escape
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, max_entries=4, show_spinner=False)
 def stories() -> list[news.Story]:
     return news.lead_order(news.top_stories())
 

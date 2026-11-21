@@ -29,33 +29,33 @@ DRAW_COLOR = "#8a8f98"
 REFRESH = 15        # seconds
 
 
-@st.cache_data(ttl=12, show_spinner=False)
+@st.cache_data(ttl=12, max_entries=60, show_spinner=False)
 def board() -> tuple[list[live.Game], dt.datetime]:
     return live.load_board(), dt.datetime.now(dt.timezone.utc)
 
 
-@st.cache_data(ttl=12, show_spinner=False)
+@st.cache_data(ttl=12, max_entries=60, show_spinner=False)
 def schedule(league: str, day: dt.date) -> list[live.Game]:
     return live.load_schedule(league, day)
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=120, max_entries=60, show_spinner=False)
 def week(league: str, first: dt.date) -> list[live.Game]:
     return live.load_week(league, first)
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=120, max_entries=60, show_spinner=False)
 def next_games(query: str) -> list[live.Game]:
     return live.next_games(query)
 
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=30, max_entries=60, show_spinner=False)
 def team_games(query: str) -> tuple[list[live.Game], list[live.Game]]:
     """(latest result, next game) for a searched team; refreshed every 30 seconds so scores stay current."""
     return live.team_games(query)
 
 
-@st.cache_data(ttl=12, show_spinner=False)
+@st.cache_data(ttl=12, max_entries=60, show_spinner=False)
 def history(series: str, ticker: str, hours: float, interval: int):
     return live.kalshi_history(series, ticker, hours, interval)
 
@@ -82,7 +82,7 @@ def ours_for(g: live.Game) -> winprob.OwnOdds | None:
     return card_odds(g.key, g.state, a.score, h.score, g.period, g.clock, g.detail, a.record, h.record, _g=g)
 
 
-@st.cache_data(ttl=12, show_spinner=False)
+@st.cache_data(ttl=12, max_entries=60, show_spinner=False)
 def details(path: str, event_id: str) -> live.Details:
     return live.game_details(path, event_id)
 
@@ -571,7 +571,7 @@ def game_view(key: str, day: str | None = None) -> None:
 
 
 # --------------------------------------------------------------- best bets
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, max_entries=60, show_spinner=False)
 def best(book: str, sort: str, min_win: float) -> tuple[list[bestbets.Bet], int, dt.datetime]:
     games, fetched = board()
     bets, checked = bestbets.best_bets(games, book, sort, min_win=min_win)

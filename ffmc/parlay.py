@@ -23,6 +23,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ ESPN = "https://site.api.espn.com/apis/site/v2/sports/{path}/scoreboard"
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 KALSHI_FEE = 0.07          # taker fee: 0.07 x price x (1 - price) per contract
 MAX_SPREAD = 0.30          # keep Kalshi markets with a bid/ask gap up to 30 cents (pages filter tighter)
-SCAN_DAYS = 7              # one shared scan covers the next week; pages filter to fewer days
+SCAN_DAYS = 3              # one shared scan covers the next 3 days (memory: the server has 512 MB in all)
 WINNER_SERIES = re.compile(r"(GAME|MATCH|FIGHT|BOUT)$")
 
 # ESPN leagues that carry DraftKings odds: (sport, league, path)
@@ -62,7 +63,7 @@ Progress = "Callable[[str, float, dict], None] | None"
 
 
 # --------------------------------------------------------------------- legs
-@dataclass
+@dataclass(slots=True)          # slots: tens of thousands of these stay in memory, so no per-object dict
 class Leg:
     key: str                     # unique id
     game: str                    # legs with the same game id are from the same game
@@ -207,22 +208,35 @@ class OddsClient:
     def kalshi_sports_series(self) -> dict[str, dict]:
         return {s["ticker"]: s for s in self.kalshi("/series", [("category", "Sports")], ttl=86400).get("series", [])}
 
-    def kalshi_all_markets(self, max_close: int, progress=None, time_limit: float = 100) -> tuple[list[dict], bool]:
-        """Every open single (non-combo) Kalshi market closing before ``max_close``, page by page."""
-        markets, cursor, start = [], "", time.time()
+    def kalshi_all_markets(self, max_close: int, progress=None, time_limit: float = 100,
+                           keep=None) -> tuple[list[dict], bool, int]:
+        """Every open single (non-combo) Kalshi market closing before ``max_close``, page by page.
+
+        Kalshi has ~90,000 open markets and each comes with dozens of fields, so to stay inside the server's
+        memory only markets ``keep(event_ticker)`` accepts are kept, with just the fields we use.
+        Returns (markets, finished?, how many were scanned)."""
+        markets, cursor, start, scanned = [], "", time.time(), 0
         while True:
             params = [("status", "open"), ("limit", "1000"), ("max_close_ts", str(max_close)), ("mve_filter", "exclude")]
             if cursor:
                 params.append(("cursor", cursor))
             page = self.kalshi("/markets", params, ttl=600)
-            markets += page.get("markets", [])
+            for m in page.get("markets", []):
+                scanned += 1
+                if keep is None or keep(m.get("event_ticker", "")):
+                    markets.append({k: m.get(k) for k in MARKET_FIELDS})
             cursor = page.get("cursor")
+            del page
             if progress:
-                progress(len(markets))
+                progress(scanned)
             if not cursor:
-                return markets, True
+                return markets, True, scanned
             if time.time() - start > time_limit:          # stay inside the time budget
-                return markets, False
+                return markets, False, scanned
+
+
+MARKET_FIELDS = ("event_ticker", "ticker", "yes_bid_dollars", "yes_ask_dollars", "occurrence_datetime",
+                 "expected_expiration_time", "yes_sub_title", "title")
 
 
 def _team(c: dict) -> str:
@@ -239,16 +253,21 @@ def espn_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = None)
     now = now or dt.datetime.now(dt.timezone.utc)
     jobs = [(sport, league, path, (now + dt.timedelta(d)).date()) for sport, league, path in ESPN_LEAGUES
             for d in range(-1, days + 1)]
-    with ThreadPoolExecutor(8) as pool:
-        results = list(pool.map(lambda j: (j, client.espn_day(j[2], j[3])), jobs))
+    legs, seen, lock = [], set(), threading.Lock()
 
-    legs, seen = [], set()
-    for (sport, league, _, _), events in results:
+    def one(job) -> None:
+        """Fetch one league-day and keep only its legs, so the raw pages never pile up in memory."""
+        sport, league, path, day = job
+        events = client.espn_day(path, day)
         for e in events:
-            try:
-                legs += _espn_event_legs(e, sport, league, now, days, seen)
-            except (AttributeError, KeyError, TypeError, ValueError, IndexError):
-                continue              # skip one oddly shaped game rather than fail the whole scan
+            with lock:
+                try:
+                    legs.extend(_espn_event_legs(e, sport, league, now, days, seen))
+                except (AttributeError, KeyError, TypeError, ValueError, IndexError):
+                    continue          # skip one oddly shaped game rather than fail the whole scan
+
+    with ThreadPoolExecutor(4) as pool:
+        list(pool.map(one, jobs))
     return legs
 
 
@@ -311,8 +330,9 @@ def kalshi_legs(client: OddsClient, days: int = 3, now: dt.datetime | None = Non
     now = now or dt.datetime.now(dt.timezone.utc)
     series = client.kalshi_sports_series()
     max_close = int((now + dt.timedelta(days + 4)).timestamp())    # markets close a while after the game
-    markets, complete = client.kalshi_all_markets(max_close, progress)
-    stats = {"scanned": len(markets), "complete": complete}
+    markets, complete, scanned = client.kalshi_all_markets(max_close, progress,
+                                                           keep=lambda ev: ev.split("-")[0] in series)
+    stats = {"scanned": scanned, "complete": complete}
 
     by_event: dict[str, list[dict]] = {}
     for m in markets:
@@ -602,7 +622,11 @@ class Simulation:
     candidates: int
 
 
-def simulate(legs: list[Leg], parlays: list[Parlay], s: Settings, n_sims: int = 1_000_000,
+BATCH_BYTES = 24 * 1024 * 1024
+DEFAULT_SIMS = 500_000
+
+
+def simulate(legs: list[Leg], parlays: list[Parlay], s: Settings, n_sims: int = DEFAULT_SIMS,
              seed: int | None = None, progress=None) -> Simulation:
     """Play every game ``n_sims`` times and score each candidate parlay on the same slates.
 
@@ -626,12 +650,15 @@ def simulate(legs: list[Leg], parlays: list[Parlay], s: Settings, n_sims: int = 
 
     # Layer 2: play the games. Results are stored as bits (1 = leg won), 8 slates per byte.
     packed = np.zeros((n_sims // 8, len(used)), dtype=np.uint8)
-    chunk = 100                                       # scenarios per batch (100,000 slates)
+    # Scenarios per batch, so one batch's random numbers stay around BATCH_BYTES (the server has 512 MB in all).
+    chunk = max(1, min(100, BATCH_BYTES // (per * max(len(used), 1) * 5)))
     for start in range(0, scenarios, chunk):
         stop = min(scenarios, start + chunk)
-        tp = np.repeat(true_p[start:stop].astype(np.float32), per, axis=0)
-        wins = rng.random(tp.shape, dtype=np.float32) < tp
+        draws = rng.random((stop - start, per, len(used)), dtype=np.float32)
+        wins = (draws < true_p[start:stop, None, :].astype(np.float32)).reshape(-1, len(used))
+        del draws
         packed[start * per // 8: stop * per // 8] = np.packbits(wins, axis=0)
+        del wins
         if progress:
             progress(stop / scenarios)
 
@@ -666,7 +693,7 @@ def simulate(legs: list[Leg], parlays: list[Parlay], s: Settings, n_sims: int = 
     return Simulation(shown, n_sims, profit, len(used), len(parlays))
 
 
-def find_parlays(legs: list[Leg], s: Settings, n_sims: int = 1_000_000, seed: int | None = None,
+def find_parlays(legs: list[Leg], s: Settings, n_sims: int = DEFAULT_SIMS, seed: int | None = None,
                  progress=None) -> Simulation:
     cands = candidates(legs, s)
     if not cands:

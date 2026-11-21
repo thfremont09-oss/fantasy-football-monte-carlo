@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from ffmc import cfb, engine, matchup
 from ffmc.http import APIError
+from ffmc.mem import heavy
 from ffmc.data import Slate, with_rosters
 from ffmc.lineup import SLOT_ELIGIBILITY
 from ffmc.demo import demo_slate
@@ -53,20 +54,22 @@ def espn_week(season: int) -> int:
     return ESPNFantasy(season).current_week()
 
 
-@st.cache_data(ttl=1800, show_spinner="Downloading ESPN projections and stats...")
+@st.cache_data(ttl=1800, max_entries=4, show_spinner="Downloading ESPN projections and stats...")
 def load_pool(season: int, week: int, rules: str, slots: tuple[str, ...], history_weeks: int) -> Slate:
-    return load_default(ESPNFantasy(season), rules, list(slots), week, history_weeks)
+    with heavy():
+        return load_default(ESPNFantasy(season), rules, list(slots), week, history_weeks)
 
 
-@st.cache_data(ttl=300, show_spinner="Loading your ESPN league...")
+@st.cache_data(ttl=300, max_entries=12, show_spinner="Loading your ESPN league...")
 def load_espn_league(season: int, week: int, league_id: str, team_id: int | None, espn_s2: str, swid: str,
                      history_weeks: int):
     return load_league(ESPNFantasy(season, espn_s2=espn_s2, swid=swid), league_id, team_id, week, history_weeks)
 
 
-@st.cache_data(ttl=1800, show_spinner="Reading this season's college box scores (first time takes a minute)...")
+@st.cache_data(ttl=1800, max_entries=3, show_spinner="Reading this season's college box scores (first time takes a minute)...")
 def load_cfb(season: int, week: int, rules: str, slots: tuple[str, ...], history_weeks: int) -> Slate:
-    return cfb.load_slate(cfb.CollegeData(), rules, list(slots), season, week, history_weeks)
+    with heavy():
+        return cfb.load_slate(cfb.CollegeData(), rules, list(slots), season, week, history_weeks)
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -247,10 +250,11 @@ if st.button(f"Simulate {n_sims:,} weeks", type="primary") or st.session_state.g
     if st.session_state.get("params") != params:
         bar = st.progress(0.0, text=f"Simulating the week {n_sims:,} times...")
         try:
-            st.session_state["result"] = engine.run(
-                slate, n_sims=n_sims, objective=objective, seed=int(seed), correlated=correlated, dream=dream,
-                progress=lambda f: bar.progress(f, text=f"Simulating the week {n_sims:,} times... "
-                                                        f"{int(f * n_sims):,} done"))
+            with heavy():                       # one big job at a time on the 512 MB server
+                st.session_state["result"] = engine.run(
+                    slate, n_sims=n_sims, objective=objective, seed=int(seed), correlated=correlated, dream=dream,
+                    progress=lambda f: bar.progress(f, text=f"Simulating the week {n_sims:,} times... "
+                                                            f"{int(f * n_sims):,} done"))
         except ValueError as exc:
             st.error(str(exc))
             st.stop()

@@ -29,6 +29,7 @@ import numpy as np
 
 from . import live
 from .http import APIError, CachedJSON
+from .mem import heavy
 
 # league: (margin cap, prior games, months of results to use, extra ESPN query params per fetch, home edge)
 # Home edge is fixed at the usual value rather than fitted: schedules are lopsided (good college teams host
@@ -82,16 +83,38 @@ def _events(http: CachedJSON, path: str, when: str, extra: list, past: bool) -> 
     return data.get("events") or []
 
 
-def results(name: str, as_of: dt.date, http: CachedJSON | None = None) -> list[tuple]:
-    """(date, home, away, home score, away score, neutral) for every finished game before ``as_of``."""
+def _parse(evs: list[dict], seen: set, out: list) -> None:
+    """Add every finished game on one page of results to ``out`` (as small tuples), then the page can go."""
+    for e in evs:
+        if e.get("id") in seen:
+            continue
+        for comp in e.get("competitions") or []:
+            if ((comp.get("status") or e.get("status") or {}).get("type") or {}).get("state") != "post":
+                continue
+            teams = comp.get("competitors") or []
+            if len(teams) != 2:
+                continue
+            when = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00")).astimezone(live.EASTERN).date()
+            home = next((c for c in teams if c.get("homeAway") == "home"), teams[1])
+            away = next(c for c in teams if c is not home)
+            try:
+                hs, as_ = float(home.get("score")), float(away.get("score"))
+            except (TypeError, ValueError):
+                continue
+            seen.add(e.get("id"))
+            out.append((when, (home.get("team") or {}).get("displayName", ""),
+                        (away.get("team") or {}).get("displayName", ""), hs, as_, bool(comp.get("neutralSite"))))
+
+
+def _download(name: str, as_of: dt.date, http: CachedJSON) -> list[tuple]:
     lg = _league(name)
     if not lg:
         return []
     sport, _, path, _ = lg
     cap, prior, months, extras, _ = SETUP.get(name, SOCCER)
-    http = http or CachedJSON()
     today = dt.date.today()
-    batches = []
+    seen: set = set()
+    out: list[tuple] = []
     if name == "College Football":
         # ESPN's college month queries skip most games: go week by week, FBS and FCS
         season = as_of.year if as_of.month >= 6 else as_of.year - 1
@@ -102,48 +125,47 @@ def results(name: str, as_of: dt.date, http: CachedJSON | None = None) -> list[t
                                     ("dates", str(season)), ("limit", "500")] + extra, ttl=6 * 3600)
                 except APIError:
                     continue
-                batches.append(data.get("events") or [])
-    else:
-        for month in _months(as_of, months):
-            y, m = int(month[:4]), int(month[4:])
-            month_done = (y, m) < (today.year, today.month)
-            for extra in extras:
-                try:
-                    evs = _events(http, path, month, extra, month_done)
-                    if len(evs) >= 1000:              # ESPN stops at 1,000: fetch that month a day at a time
-                        evs = []
-                        d = dt.date(y, m, 1)
-                        while d.month == m and d < as_of:
-                            evs += _events(http, path, d.strftime("%Y%m%d"), extra, d < today - dt.timedelta(2))
-                            d += dt.timedelta(1)
-                except APIError:
+                _parse(data.get("events") or [], seen, out)
+                del data
+        return out
+    for month in _months(as_of, months):
+        y, m = int(month[:4]), int(month[4:])
+        month_done = (y, m) < (today.year, today.month)
+        for extra in extras:
+            try:
+                evs = _events(http, path, month, extra, month_done)
+                if len(evs) >= 1000:              # ESPN stops at 1,000: fetch that month a day at a time
+                    evs = None
+                    d = dt.date(y, m, 1)
+                    while d.month == m and d <= today:
+                        _parse(_events(http, path, d.strftime("%Y%m%d"), extra, d < today - dt.timedelta(2)), seen, out)
+                        d += dt.timedelta(1)
                     continue
-                batches.append(evs)
-    seen, out = set(), []
-    for evs in batches:
-            for e in evs:
-                if e.get("id") in seen:
-                    continue
-                for comp in e.get("competitions") or []:
-                    if ((comp.get("status") or e.get("status") or {}).get("type") or {}).get("state") != "post":
-                        continue
-                    teams = comp.get("competitors") or []
-                    if len(teams) != 2:
-                        continue
-                    when = dt.datetime.fromisoformat(e["date"].replace("Z", "+00:00")).astimezone(live.EASTERN).date()
-                    if when >= as_of:
-                        continue
-                    home = next((c for c in teams if c.get("homeAway") == "home"), teams[1])
-                    away = next(c for c in teams if c is not home)
-                    try:
-                        hs, as_ = float(home.get("score")), float(away.get("score"))
-                    except (TypeError, ValueError):
-                        continue
-                    seen.add(e.get("id"))
-                    out.append((when, (home.get("team") or {}).get("displayName", ""),
-                                (away.get("team") or {}).get("displayName", ""), hs, as_,
-                                bool(comp.get("neutralSite"))))
+            except APIError:
+                continue
+            _parse(evs, seen, out)
+            del evs
     return out
+
+
+_RESULTS: dict[tuple[str, dt.date], list[tuple]] = {}
+
+
+def results(name: str, as_of: dt.date, http: CachedJSON | None = None) -> list[tuple]:
+    """(date, home, away, home score, away score, neutral) for every finished game before ``as_of``.
+
+    The season is downloaded once a day per league; replays of earlier days just use the games before them."""
+    today = dt.datetime.now(live.EASTERN).date()
+    key = (name, today)
+    with _LOCK:
+        games = _RESULTS.get(key)
+    if games is None:
+        games = _download(name, max(as_of, today), http or CachedJSON())
+        with _LOCK:
+            for k in [k for k in _RESULTS if k[1] != today]:
+                del _RESULTS[k]
+            _RESULTS[key] = games
+    return [g for g in games if g[0] < as_of]
 
 
 def lower_tier(name: str, games: list[tuple], http: CachedJSON | None = None) -> set[str]:
@@ -226,8 +248,12 @@ def get(name: str, as_of: dt.date | None = None) -> Ratings | None:
         if key in _CACHE:
             return _CACHE[key]
     try:
-        games = results(name, as_of)
-        r = fit(name, games, as_of, lower_tier(name, games))
+        with heavy():                                # one big download/fit at a time (512 MB server)
+            with _LOCK:
+                if key in _CACHE:                    # fitted by someone else while we waited
+                    return _CACHE[key]
+            games = results(name, as_of)
+            r = fit(name, games, as_of, lower_tier(name, games))
     except Exception:                                # ratings are an extra: never break a page over them
         r = None
     with _LOCK:

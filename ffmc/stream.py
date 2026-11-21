@@ -11,7 +11,7 @@ from typing import Callable, Iterator
 
 import numpy as np
 
-BATCH = 50_000
+BATCH = 20_000          # small batches keep the peak low: the server has 512 MB for everything
 Progress = Callable[[float], None] | None
 
 

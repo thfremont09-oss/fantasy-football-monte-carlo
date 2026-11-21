@@ -426,7 +426,7 @@ def simulate_week(board: Board, n_sims: int = 1_000_000, seed: int = 7) -> WeekO
 
     def total(roster: list[DPlayer], already: float) -> tuple[np.ndarray, dict[str, int]]:
         starts = week_starts(roster, board.slots, board.days)
-        out = np.full(n_sims, already, dtype=np.float64)
+        out = np.full(n_sims, already, dtype=np.float32)      # half the memory of float64
         for p in roster:
             k = starts.get(p.id, 0)
             if not k:
@@ -434,8 +434,9 @@ def simulate_week(board: Board, n_sims: int = 1_000_000, seed: int = 7) -> WeekO
             # k games, each played with chance p_play: mean and variance of the sum
             mean = k * p.p_play * p.avg
             var = k * (p.p_play * p.sd ** 2 + p.p_play * (1 - p.p_play) * p.avg ** 2)
-            draw = rng.normal(mean, math.sqrt(var), n_sims)
+            draw = rng.normal(mean, math.sqrt(var), n_sims).astype(np.float32)
             out += np.maximum(draw, k * board.sport.floor.get(p.position, board.sport.floor["*"]))
+            del draw
         return out, starts
 
     my_total, my_starts = total(mine, board.my_score)

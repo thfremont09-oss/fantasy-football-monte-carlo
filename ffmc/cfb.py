@@ -160,7 +160,7 @@ class CollegeData:
                 continue
             ids.append([e["id"] for e in events
                         if ((e.get("status") or {}).get("type") or {}).get("state") == "post"])
-        with ThreadPoolExecutor(12) as pool:
+        with ThreadPoolExecutor(4) as pool:
             out = []
             for week_ids in ids:
                 merged: dict[str, dict] = {}

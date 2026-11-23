@@ -48,3 +48,12 @@ def test_too_far_from_market_is_not_an_edge():
                                                                                  side("Home", 0.94, -5000)])
     assert bestbets.too_far(game, 0, 0.69, 0.06)       # 69% vs a 6% market: our blind spot
     assert not bestbets.too_far(game, 0, 0.12, 0.06)   # a few points off: fine
+
+
+def test_team_notes_rank_schedule_and_this_season_only():
+    old = [g("A", "B", 30, 0, days_ago=200), g("B", "A", 30, 0, days_ago=199)]        # last season
+    now = [g("A", "C", 10, 7, days_ago=k) for k in range(1, 6)] + [g("B", "C", 3, 7, days_ago=k) for k in range(1, 6)]
+    r = ratings.fit("NBA", old + now, DAY)
+    a, b = r.notes["A"], r.notes["B"]
+    assert (a.wins, a.losses) == (5, 0) and (b.wins, b.losses) == (0, 5)     # this season's games only
+    assert a.rank < b.rank and a.of == 3 and a.last[0] == 3

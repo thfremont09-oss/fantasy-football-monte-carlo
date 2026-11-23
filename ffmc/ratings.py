@@ -50,6 +50,19 @@ MIN_GAMES = 4                     # a team needs this many results to be rated
 
 
 @dataclass
+class TeamNote:
+    """Plain facts behind a team's rating, for explaining a pick."""
+    rank: int                     # by rating, among rated teams in the league (1 = best)
+    of: int
+    sos: float                    # average rating of the opponents it has played
+    sos_rank: int                 # 1 = toughest schedule
+    wins: int
+    losses: int
+    last: list[float]
+    draws: int = 0             # margins of its last few games, newest first (its own point of view)
+
+
+@dataclass
 class Ratings:
     league: str
     rating: dict[str, float]      # team name -> points better than average (on a neutral field)
@@ -57,6 +70,7 @@ class Ratings:
     home_edge: float              # points
     resid_sd: float               # typical miss of the fitted margins, in points
     n_games: int
+    notes: dict[str, TeamNote] | None = None
 
     def margin(self, home: str, away: str) -> float | None:
         """Expected home margin, or None if either team hasn't played enough to be rated."""
@@ -86,7 +100,7 @@ def _events(http: CachedJSON, path: str, when: str, extra: list, past: bool) -> 
 def _parse(evs: list[dict], seen: set, out: list) -> None:
     """Add every finished game on one page of results to ``out`` (as small tuples), then the page can go."""
     for e in evs:
-        if e.get("id") in seen:
+        if e.get("id") in seen or (e.get("season") or {}).get("type") == 1:     # preseason games don't count
             continue
         for comp in e.get("competitions") or []:
             if ((comp.get("status") or e.get("status") or {}).get("type") or {}).get("state") != "post":
@@ -232,8 +246,38 @@ def fit(name: str, games: list[tuple], as_of: dt.date, tier: set[str] | None = N
     for g in games:
         played[g[1]] = played.get(g[1], 0) + 1
         played[g[2]] = played.get(g[2], 0) + 1
-    return Ratings(name, {t: float(sol[idx[t]] + (sol[k] if t in tier else 0.0)) for t in teams}, played, home_edge,
-                   float(np.sqrt(np.average(resid ** 2, weights=w))), n)
+    rating = {t: float(sol[idx[t]] + (sol[k] if t in tier else 0.0)) for t in teams}
+    return Ratings(name, rating, played, home_edge, float(np.sqrt(np.average(resid ** 2, weights=w))), n,
+                   team_notes(games, rating, played))
+
+
+def team_notes(games: list[tuple], rating: dict[str, float], played: dict[str, int]) -> dict[str, TeamNote]:
+    """Rank, schedule strength, record and recent margins for every rated team."""
+    # Records and recent form count this season only: it starts after the last long break in the schedule.
+    days = sorted({g[0] for g in games})
+    season_start = days[0] if days else dt.date.min
+    for a_, b_ in zip(days, days[1:]):
+        if (b_ - a_).days > 70:          # an off-season, not a mid-season break (e.g. a World Cup pause)
+            season_start = b_
+    opp: dict[str, list[float]] = {}
+    hist: dict[str, list[tuple]] = {}
+    for when, home, away, hs, as_, _ in games:
+        for team, other, margin in ((home, away, hs - as_), (away, home, as_ - hs)):
+            opp.setdefault(team, []).append(rating.get(other, 0.0))
+            if when >= season_start:
+                hist.setdefault(team, []).append((when, margin))
+    # ranks among teams playing this season (relegated or finished teams keep a rating but aren't ranked)
+    rated = sorted((t for t in rating if played.get(t, 0) >= MIN_GAMES and len(hist.get(t, [])) >= 3),
+                   key=lambda t: -rating[t])
+    rank = {t: i + 1 for i, t in enumerate(rated)}
+    sos = {t: float(np.mean(v)) for t, v in opp.items()}
+    sos_rank = {t: i + 1 for i, t in enumerate(sorted((t for t in rated), key=lambda t: -sos[t]))}
+    out = {}
+    for t in rated:
+        h = sorted(hist.get(t, []), key=lambda x: x[0], reverse=True)
+        out[t] = TeamNote(rank[t], len(rated), sos[t], sos_rank[t], sum(m > 0 for _, m in h), sum(m < 0 for _, m in h),
+                          [m for _, m in h[:5]], sum(m == 0 for _, m in h))
+    return out
 
 
 _CACHE: dict[tuple[str, dt.date], Ratings | None] = {}

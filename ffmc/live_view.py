@@ -639,6 +639,70 @@ def edge_lines(e: bestbets.Edge) -> str:
     return out
 
 
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _unit(league: str) -> str:
+    return "points" if league in winprob.MARGIN else "runs" if league in winprob.BASEBALL else "goals"
+
+
+def why_html(e: bestbets.Edge) -> str:
+    """Plain reasons our simulation rates this team above Kalshi's price, from the same numbers it uses."""
+    from ffmc import ratings
+    g, s = e.game, e.side
+    i = 0 if s is g.sides[0] else 1
+    o = g.sides[1 - i]
+    me, them = html.escape(s.short or s.name), html.escape(o.short or o.name)
+    unit = _unit(g.league)
+    lines = []
+    r = ratings.get(g.league) if winprob.USE_RATINGS else None
+    a, b = (r.notes or {}).get(s.name) if r else None, (r.notes or {}).get(o.name) if r else None
+    if r and a and b:
+        sign = lambda x: f"{x:+.1f}"
+        soccer = g.sport == "Soccer"
+
+        def rec(w: int, d: int, l_: int) -> str:            # soccer shows draws: wins-draws-losses
+            return f"{w}-{d}-{l_}" if soccer else f"{w}-{l_}"
+        lines.append(f"<b>Strength:</b> on this season's results {me} rate <b>#{a.rank}</b> of {a.of} in "
+                     f"{html.escape(g.league)} ({sign(r.rating[s.name])} {unit} a game vs an average team); "
+                     f"{them} rate #{b.rank} ({sign(r.rating[o.name])}).")
+        tougher = a.sos_rank < b.sos_rank
+        three = "soccer" if soccer else ""
+        share = lambda side: (winprob._share(side.record, three) or (0.5, 0))[0]
+        line = (f"<b>Schedule:</b> {me} ({html.escape(s.record)}) have played the {_ordinal(a.sos_rank)}-toughest "
+                f"schedule; {them} ({html.escape(o.record)}) the {_ordinal(b.sos_rank)}.")
+        if tougher and share(o) > share(s):
+            line += f" {them}'s better record came against weaker teams, so it counts for less."
+        lines.append(line)
+        if a.last and b.last:
+            avg = lambda xs: sum(xs) / len(xs)
+            form = lambda xs: rec(sum(m > 0 for m in xs), sum(m == 0 for m in xs), sum(m < 0 for m in xs))
+            lines.append(f"<b>Form:</b> last {len(a.last)} games {me} {form(a.last)} ({sign(avg(a.last))} {unit} a "
+                         f"game); {them} {form(b.last)} ({sign(avg(b.last))}).")
+        home = i == 1
+        m_home = r.margin(g.sides[1].name, g.sides[0].name)
+        if m_home is not None:
+            mine = m_home if home else -m_home
+            where = f"at home (worth about {r.home_edge:g} {unit})" if home else "on the road"
+            say = f"win by {mine:.1f}" if mine >= 0 else f"lose by {-mine:.1f}"
+            line = f"<b>Our number:</b> {me} are {where}; we expect them to {say} {unit}"
+            if g.league in winprob.MARGIN and 0.02 < e.kalshi < 0.98:
+                sd = winprob.MARGIN[g.league][0]
+                implied = sd * winprob.NormalDist().inv_cdf(e.kalshi)
+                isay = f"win by {implied:.1f}" if implied >= 0 else f"lose by {-implied:.1f}"
+                line += f", while Kalshi's {e.kalshi * 100:.0f}% says they {isay}"
+            lines.append(line + ".")
+    else:
+        lines.append(f"<b>Records:</b> {me} {html.escape(s.record)} vs {them} {html.escape(o.record)}, plus "
+                     f"{'home' if i == 1 else 'road'} advantage. Too few games to rate these teams on who they've "
+                     f"played yet, so this pick leans on records alone: treat it with extra caution.")
+    lines.append("<b>What we can't see:</b> injuries, rest and lineup news. If the gap comes from one of those, "
+                 "the market is probably right.")
+    return ('<div class="ed-why"><p>Why our sims are higher</p><ul>' + "".join(f"<li>{x}</li>" for x in lines)
+            + "</ul></div>")
+
+
 def edge_card(e: bestbets.Edge, stake: float) -> str:
     """One pick, said plainly: how our simulations track with Kalshi, and what your stake gets back."""
     g, s = e.game, e.side
@@ -653,7 +717,7 @@ def edge_card(e: bestbets.Edge, stake: float) -> str:
                f'</div>' if e.ours < 0.5 else "")
             + f'<p class="ed-say">We like <b>{html.escape(s.name)}</b> more than the market does. Our sims give them '
             f'<span class="ed-big">{e.ours * 100:.0f}%</span>; Kalshi has {e.kalshi * 100:.0f}%.</p>'
-            f'{sim_bars(e.ours, e.kalshi)}{edge_lines(e)}'
+            f'{sim_bars(e.ours, e.kalshi)}{why_html(e)}{edge_lines(e)}'
             f'<div class="bb-how">{pay}</div>'
             f'<div class="lv-foot">vs {html.escape(other.name)} · {html.escape(s.record)} vs {html.escape(other.record)}'
             f' · tap for the game page</div></div></a>')
@@ -669,6 +733,13 @@ EDGE_CSS = """<style>
 .ed-note { font-size: .92rem; line-height: 1.55; color: var(--sub); background: var(--soft); border: 1px solid var(--line);
   border-left: 3px solid #b26a00; border-radius: 6px; padding: .6rem .85rem; margin: .1rem 0 .9rem; max-width: 80ch; }
 .ed-note b { color: var(--ink); }
+.ed-why { margin: .2rem 0 .7rem; padding: .55rem .75rem; background: var(--soft); border: 1px solid var(--line);
+  border-radius: 6px; }
+.ed-why p { margin: 0 0 .25rem; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); }
+.ed-why ul { margin: 0; padding-left: 1.05rem; }
+.ed-why li { font-size: .86rem; line-height: 1.45; color: var(--sub); margin: .18rem 0; }
+.ed-why li b { color: var(--ink); }
 </style>"""
 
 

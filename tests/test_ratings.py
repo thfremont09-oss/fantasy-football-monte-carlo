@@ -57,3 +57,17 @@ def test_team_notes_rank_schedule_and_this_season_only():
     a, b = r.notes["A"], r.notes["B"]
     assert (a.wins, a.losses) == (5, 0) and (b.wins, b.losses) == (0, 5)     # this season's games only
     assert a.rank < b.rank and a.of == 3 and a.last[0] == 3
+
+
+def test_injury_values_and_back_to_back():
+    from ffmc import injuries
+    star = {"gamesPlayed": 20, "avgPoints": 30, "avgRebounds": 8, "avgAssists": 6}
+    bench = {"gamesPlayed": 20, "avgPoints": 4, "avgRebounds": 2, "avgAssists": 1}
+    assert 4 < injuries.player_value("NBA", "F", star, 20) < 6
+    assert injuries.player_value("NBA", "G", bench, 20) == 0
+    assert injuries.player_value("NBA", "F", star, 80) < 2         # missed most of the season: already in results
+    assert injuries.player_value("NFL", "QB", {"passingYards": 2400}, 10) == 5.5
+    assert injuries.player_value("NHL", "G", {"gameStarted": 15, "games": 15}, 20) == 0.25
+    day = dt.date(2026, 11, 20)
+    assert injuries.back_to_back("NBA", "A", day, [(day - dt.timedelta(1), "A", "B", 100, 90, False)])
+    assert not injuries.back_to_back("NBA", "A", day, [(day - dt.timedelta(2), "A", "B", 100, 90, False)])

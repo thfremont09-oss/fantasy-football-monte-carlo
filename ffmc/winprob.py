@@ -26,6 +26,7 @@ import numpy as np
 
 N_SIMS = 1_000_000
 USE_RATINGS = True          # strength-of-schedule ratings (tests switch this off to stay offline)
+USE_INJURIES = True         # today's injury report and back-to-backs, for games starting soon
 
 # league: (spread of the final margin over a full game, periods, seconds per period, home edge in log-odds,
 #          games of shrinkage toward .500 for the records)
@@ -108,7 +109,17 @@ def rated_margin(g) -> tuple[float, float] | None:
     if r is None:
         return None
     m = r.margin(g.sides[1].name, g.sides[0].name)
-    return None if m is None else (m, r.resid_sd)
+    if m is None:
+        return None
+    if USE_INJURIES:
+        from . import injuries
+        try:
+            sit = injuries.situation(g, r)
+        except Exception:                     # an extra: never break the odds over it
+            sit = None
+        if sit:
+            m += sit.home_adj
+    return m, r.resid_sd
 
 
 def _pre_from_ratings(g, fallback_sd: float) -> float | None:
@@ -235,7 +246,8 @@ def soccer(g, rng, n: int) -> OwnOdds:
 
 def _basis(g, frac: float) -> str:
     if rated_margin(g):
-        what = "team ratings from this season's results (who each side played and by how much)"
+        what = ("team ratings from this season's results (who each side played and by how much), adjusted for "
+                "injuries and back-to-backs where ESPN reports them")
     else:
         recs = " and ".join(s.record for s in g.sides if s.record) or "no records yet"
         what = f"records ({recs})"

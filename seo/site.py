@@ -358,12 +358,19 @@ def warm_ratings() -> None:
         return
 
     def loop():
-        from ffmc import live, ratings
+        from ffmc import injuries, live, ratings
         while True:
             for lg in live.LEAGUES:
                 if lg[0] not in ("Tennis", "MMA"):
-                    ratings.get(lg[1])
-            time.sleep(3 * 3600)
+                    ratings.get(lg[1])                       # cached for the day after the first fit
+            for lg in injuries.PATHS:                        # injury reports change all day
+                r = ratings.get(lg)
+                try:
+                    injuries.report(lg, lambda team, r=r: (lambda n: n.wins + n.losses + n.draws if n else 0)(
+                        (r.notes or {}).get(team) if r else None))
+                except Exception:
+                    pass
+            time.sleep(injuries.REFRESH)
     threading.Thread(target=loop, daemon=True, name="warm-ratings").start()
 
 

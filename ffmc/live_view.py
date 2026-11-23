@@ -681,7 +681,34 @@ def why_html(e: bestbets.Edge) -> str:
             lines.append(f"<b>Form:</b> last {len(a.last)} games {me} {form(a.last)} ({sign(avg(a.last))} {unit} a "
                          f"game); {them} {form(b.last)} ({sign(avg(b.last))}).")
         home = i == 1
-        m_home = r.margin(g.sides[1].name, g.sides[0].name)
+        sit = None
+        from ffmc import injuries
+        try:
+            sit = injuries.situation(g, r)
+        except Exception:
+            sit = None
+        if g.league in injuries.PATHS and sit is not None:
+            def listed(ms) -> str:
+                worth = [m for m in ms if m.expected >= 0.1]
+                if not worth:
+                    return "nobody who matters"
+                return ", ".join(f"{html.escape(m.name)} ({m.status.lower()}, ~{m.value:.1f} {unit})"
+                                 for m in worth[:3]) + (f" +{len(worth) - 3} more" if len(worth) > 3 else "")
+            mine_out, their_out = (sit.home_out, sit.away_out) if home else (sit.away_out, sit.home_out)
+            net = sum(m.expected for m in their_out) - sum(m.expected for m in mine_out)
+            lines.append(f"<b>Injuries:</b> {me} without {listed(mine_out)}; {them} without {listed(their_out)}."
+                         + (f" Net effect: about {net:+.1f} {unit} for {me}." if abs(net) >= 0.1 else ""))
+        elif g.league not in injuries.PATHS:
+            lines.append(f"<b>Injuries:</b> ESPN doesn't publish an injury report for {html.escape(g.league)}, so "
+                         "injuries aren't in this number. Check team news before betting.")
+        if sit and (sit.home_b2b or sit.away_b2b):
+            tired = [n for n, b2b in ((me, sit.home_b2b if home else sit.away_b2b),
+                                      (them, sit.away_b2b if home else sit.home_b2b)) if b2b]
+            lines.append(f"<b>Rest:</b> {' and '.join(tired)} played yesterday too (second night of a back-to-back), "
+                         f"worth about {injuries.BACK_TO_BACK[g.league]:g} "
+                         f"{unit} against.")
+        rm = winprob.rated_margin(g)
+        m_home = rm[0] if rm else r.margin(g.sides[1].name, g.sides[0].name)
         if m_home is not None:
             mine = m_home if home else -m_home
             where = f"at home (worth about {r.home_edge:g} {unit})" if home else "on the road"
@@ -697,8 +724,8 @@ def why_html(e: bestbets.Edge) -> str:
         lines.append(f"<b>Records:</b> {me} {html.escape(s.record)} vs {them} {html.escape(o.record)}, plus "
                      f"{'home' if i == 1 else 'road'} advantage. Too few games to rate these teams on who they've "
                      f"played yet, so this pick leans on records alone: treat it with extra caution.")
-    lines.append("<b>What we can't see:</b> injuries, rest and lineup news. If the gap comes from one of those, "
-                 "the market is probably right.")
+    lines.append("<b>Still not in the model:</b> late scratches after the latest injury report, lineup changes and "
+                 "motivation. A gap that big can still mean the market knows something we don't.")
     return ('<div class="ed-why"><p>Why our sims are higher</p><ul>' + "".join(f"<li>{x}</li>" for x in lines)
             + "</ul></div>")
 

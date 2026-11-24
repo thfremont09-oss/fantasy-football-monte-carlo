@@ -248,3 +248,91 @@ def model_edges(games: list[Game], ours, top: int = 12) -> list[Edge]:
             if e.gap > 0:
                 out.append(e)
     return sorted(out, key=lambda e: -e.gap)[:top]
+
+
+# ------------------------------------------------------------------ best value (market consensus)
+# Backtests (tools/fit_market_blend.py, tools/backtest_price_shopping.py, 2026-11-24, ~700 games):
+# * Kalshi and DraftKings (cut removed) predict results about equally well, and both beat our model alone.
+#   The best fair chance is their consensus; our model only earns a weight in hockey.
+# * Buying where one venue is 2+ points cheaper than that fair chance made money (+16% on a small sample);
+#   smaller gaps lost to Kalshi's fee. So "real value" means +2% expected return or more, after fees.
+BLEND = {"Hockey": 0.3}        # weight on our model, by sport (logit scale); 0 everywhere else
+REAL_VALUE = 0.02              # expected return (after fees) that counts as real value
+SHOW_DOWN_TO = -0.03           # still show the closest-to-fair bets down to this, labelled as such
+FAIR_RANGE = (0.10, 0.90)      # long shots and near-locks: fair chances there are too shaky (and fees bite)
+
+
+def _logit(p: float) -> float:
+    p = min(max(p, 0.005), 0.995)
+    return math.log(p / (1 - p))
+
+
+@dataclass
+class Value:
+    """One side of one game, priced against the market's fair chance."""
+    game: Game
+    side: object               # live.Side
+    index: int
+    fair: float                # consensus chance (DraftKings without its cut + Kalshi, + our model in hockey)
+    dk_fair: float | None
+    kalshi: float | None       # Kalshi's chance (middle of buy and sell)
+    ours: float | None         # our simulation, for context
+    book: str                  # where the better price is
+    implied: float             # the chance that price implies, fees included (break-even)
+    ev: float                  # expected return per $1, after fees
+    bet: Bet
+
+    @property
+    def real(self) -> bool:
+        return self.ev >= REAL_VALUE
+
+    # so the "why" box built for model picks can explain these too
+    @property
+    def ask(self) -> float:
+        return self.side.kalshi_ask or 0.0
+
+
+def fair_chance(g: Game, i: int, ours: float | None) -> float | None:
+    """The market's fair chance for side ``i``: DraftKings (cut removed) and Kalshi averaged; our model mixed in
+    only where backtests say it helps. None unless both markets price the game."""
+    fair = g.dk_fair()
+    s = g.sides[i]
+    if not fair or s.kalshi is None:
+        return None
+    p = (fair[i] + s.kalshi) / 2
+    w = BLEND.get(g.sport, 0.0)
+    if w and ours is not None:
+        p = 1 / (1 + math.exp(-(_logit(p) + w * (_logit(ours) - _logit(p)))))
+    return p
+
+
+def value_picks(games: list[Game], ours, top: int = 12) -> list[Value]:
+    """Sides priced below the market's own fair chance on DraftKings or Kalshi, best expected return first."""
+    out = []
+    for g in games:
+        if g.state != "pre" or len(g.sides) != 2:
+            continue
+        mine = ours(g) if g.sport in BLEND else None
+        fair_dk = g.dk_fair()
+        for i, s in enumerate(g.sides):
+            p_ours = (mine.away if i == 0 else mine.home) if mine else None
+            fair = fair_chance(g, i, p_ours)
+            if fair is None or not FAIR_RANGE[0] <= fair <= FAIR_RANGE[1]:
+                continue
+            options = []
+            if s.kalshi_ask and 0.02 <= s.kalshi_ask <= 0.98:
+                a = s.kalshi_ask
+                cost = a + KALSHI_FEE * a * (1 - a)          # per $1 contract, fee included
+                options.append((fair / cost - 1, "Kalshi", cost,
+                                Bet(g, s.name, "Kalshi", f"{a * 100:.0f}¢", 1 / a, a, fair, ask=a)))
+            if s.dk is not None:
+                d = _decimal(s.dk)
+                options.append((fair * d - 1, "DraftKings", 1 / d,
+                                Bet(g, s.name, "DraftKings", f"{s.dk:+d}", d, 1 / d, fair, american=s.dk)))
+            if not options:
+                continue
+            ev, book, implied, bet = max(options, key=lambda o: o[0])
+            if ev >= SHOW_DOWN_TO:
+                out.append(Value(g, s, i, fair, fair_dk[i] if fair_dk else None, s.kalshi, p_ours, book, implied, ev,
+                                 bet))
+    return sorted(out, key=lambda v: -v.ev)[:top]

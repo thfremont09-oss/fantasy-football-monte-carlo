@@ -647,7 +647,7 @@ def _unit(league: str) -> str:
     return "points" if league in winprob.MARGIN else "runs" if league in winprob.BASEBALL else "goals"
 
 
-def why_html(e: bestbets.Edge) -> str:
+def why_html(e, title: str = "Why our sims are higher") -> str:
     """Plain reasons our simulation rates this team above Kalshi's price, from the same numbers it uses."""
     from ffmc import ratings
     g, s = e.game, e.side
@@ -691,12 +691,12 @@ def why_html(e: bestbets.Edge) -> str:
             def listed(ms) -> str:
                 worth = [m for m in ms if m.expected >= 0.1]
                 if not worth:
-                    return "nobody who matters"
+                    return "no key injuries"
                 return ", ".join(f"{html.escape(m.name)} ({m.status.lower()}, ~{m.value:.1f} {unit})"
                                  for m in worth[:3]) + (f" +{len(worth) - 3} more" if len(worth) > 3 else "")
             mine_out, their_out = (sit.home_out, sit.away_out) if home else (sit.away_out, sit.home_out)
             net = sum(m.expected for m in their_out) - sum(m.expected for m in mine_out)
-            lines.append(f"<b>Injuries:</b> {me} without {listed(mine_out)}; {them} without {listed(their_out)}."
+            lines.append(f"<b>Injuries:</b> {me}: {listed(mine_out)}; {them}: {listed(their_out)}."
                          + (f" Net effect: about {net:+.1f} {unit} for {me}." if abs(net) >= 0.1 else ""))
         elif g.league not in injuries.PATHS:
             lines.append(f"<b>Injuries:</b> ESPN doesn't publish an injury report for {html.escape(g.league)}, so "
@@ -715,7 +715,7 @@ def why_html(e: bestbets.Edge) -> str:
             say = f"win by {mine:.1f}" if mine >= 0 else f"lose by {-mine:.1f}"
             line = f"<b>Our number:</b> {me} are {where}; we expect them to {say} {unit}"
             if g.league in winprob.MARGIN and 0.02 < e.kalshi < 0.98:
-                sd = winprob.MARGIN[g.league][0]
+                sd = winprob.outcome_sd(g.league) or winprob.MARGIN[g.league][0]
                 implied = sd * winprob.NormalDist().inv_cdf(e.kalshi)
                 isay = f"win by {implied:.1f}" if implied >= 0 else f"lose by {-implied:.1f}"
                 line += f", while Kalshi's {e.kalshi * 100:.0f}% says they {isay}"
@@ -725,8 +725,9 @@ def why_html(e: bestbets.Edge) -> str:
                      f"{'home' if i == 1 else 'road'} advantage. Too few games to rate these teams on who they've "
                      f"played yet, so this pick leans on records alone: treat it with extra caution.")
     lines.append("<b>Still not in the model:</b> late scratches after the latest injury report, lineup changes and "
-                 "motivation. A gap that big can still mean the market knows something we don't.")
-    return ('<div class="ed-why"><p>Why our sims are higher</p><ul>' + "".join(f"<li>{x}</li>" for x in lines)
+                 "motivation." + (" A gap that big can still mean the market knows something we don't."
+                                  if title.startswith("Why") else ""))
+    return (f'<div class="ed-why"><p>{html.escape(title)}</p><ul>' + "".join(f"<li>{x}</li>" for x in lines)
             + "</ul></div>")
 
 
@@ -760,6 +761,12 @@ EDGE_CSS = """<style>
 .ed-note { font-size: .92rem; line-height: 1.55; color: var(--sub); background: var(--soft); border: 1px solid var(--line);
   border-left: 3px solid #b26a00; border-radius: 6px; padding: .6rem .85rem; margin: .1rem 0 .9rem; max-width: 80ch; }
 .ed-note b { color: var(--ink); }
+.ed-real { display: inline-block; font-size: .72rem; font-weight: 700; color: #1a7f37; background: rgba(26,127,55,.1);
+  border-radius: 4px; padding: .12rem .45rem; margin-top: .3rem; }
+.ed-close { display: inline-block; font-size: .72rem; font-weight: 700; color: var(--muted); background: var(--soft);
+  border-radius: 4px; padding: .12rem .45rem; margin-top: .3rem; }
+.ed-chips { font-size: .82rem; color: var(--muted); margin: -.2rem 0 .5rem; }
+.bb-neg { color: #c62828; }
 .ed-why { margin: .2rem 0 .7rem; padding: .55rem .75rem; background: var(--soft); border: 1px solid var(--line);
   border-radius: 6px; }
 .ed-why p { margin: 0 0 .25rem; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
@@ -770,32 +777,107 @@ EDGE_CSS = """<style>
 </style>"""
 
 
+def value_bars(fair: float, implied: float) -> str:
+    """Two bars: the market's fair chance and what the price needs to break even."""
+    return (f'<div class="ed-bars"><div><span>Fair chance</span><i style="width:{fair * 100:.0f}%"></i>'
+            f'<b>{fair * 100:.0f}%</b></div><div class="k"><span>Price needs</span>'
+            f'<i style="width:{implied * 100:.0f}%"></i><b>{implied * 100:.0f}%</b></div></div>')
+
+
+def value_card(v: bestbets.Value, stake: float) -> str:
+    """One best-value pick: where to buy, why the price is good, and exactly what the stake returns."""
+    from types import SimpleNamespace
+    g, s = v.game, v.side
+    o = g.sides[1 - v.index]
+    t = v.bet.ticket(stake)
+    if v.book == "Kalshi":
+        pay = (f'Bet {money(t.spent)} on Kalshi ({t.contracts} contracts at {v.bet.ask * 100:.0f}¢, fee included) and '
+               f'you get back <b>{money(t.returned)}</b> if they win, <b class="bb-pos">+{money(t.profit)}</b>.'
+               if t.contracts else f"{money(stake)} won't buy a contract at {v.bet.ask * 100:.0f}¢.")
+    else:
+        pay = (f'Bet {money(t.spent)} on DraftKings at {v.bet.price} and you get back <b>{money(t.returned)}</b> if '
+               f'they win, <b class="bb-pos">+{money(t.profit)}</b>.')
+    tag = ('<div class="ed-real">Real value · priced below the market\'s own fair chance</div>' if v.real
+           else '<div class="ed-close">Closest to fair · no real edge right now</div>')
+    mine = ours_for(g)
+    p_ours = (mine.away if v.index == 0 else mine.home) if mine else None
+    chips = [f"DraftKings fair {v.dk_fair * 100:.0f}%" if v.dk_fair is not None else "",
+             f"Kalshi {v.kalshi * 100:.0f}%" if v.kalshi is not None else "",
+             f"Our sims {p_ours * 100:.0f}%" if p_ours is not None else ""]
+    ev_line = (f'Expected return <b class="{"bb-pos" if v.ev >= 0 else "bb-neg"}">{v.ev * 100:+.1f}%</b> per bet '
+               f'after fees ({"+" if v.ev >= 0 else "−"}{money(abs(v.ev) * stake)} on {money(stake)}, on average).')
+    shim = SimpleNamespace(game=g, side=s, ours=p_ours if p_ours is not None else v.fair, kalshi=v.kalshi or v.fair)
+    return (f'<a class="lv-cardlink" href="live?game={quote(g.key)}" target="_self"><div class="lv-card bb-card">'
+            f'<div class="lv-top">{league_html(g)}{status_html(g)}</div>{tag}'
+            f'<p class="ed-say">Buy <b>{html.escape(s.name)}</b> on <b>{v.book}</b> at <b>{html.escape(v.bet.price)}</b>. '
+            f'The market\'s fair chance is <span class="ed-big">{v.fair * 100:.0f}%</span>; this price needs '
+            f'{v.implied * 100:.1f}% to break even.</p>'
+            f'{value_bars(v.fair, v.implied)}'
+            f'<div class="ed-chips">{" · ".join(c for c in chips if c)}</div>'
+            f'<div class="bb-how">{ev_line}</div>'
+            f'{why_html(shim, "What our model sees")}'
+            f'<div class="bb-how">{pay}</div>'
+            f'<div class="lv-foot">vs {html.escape(o.name)} · {html.escape(s.record)} vs {html.escape(o.record)}'
+            f' · tap for the game page</div></div></a>')
+
+
 def render_best_bets() -> None:
-    """Teams our simulations like more than Kalshi does, biggest gap first, each said in plain English."""
+    """Best value (prices below the market's own fair chance) and, separately, where our sims disagree."""
     st.markdown(EDGE_CSS, unsafe_allow_html=True)
     games, fetched = board()
     with st.container(key="bb_stake_row"):
         stake = st.number_input("Your stake ($)", 1.0, 10_000.0, 10.0, step=5.0, key="bb_stake",
-                                help="Each card shows exactly what this buys on Kalshi and what you'd get back.")
-    edges = bestbets.model_edges(games, ours_for)
-    dogs = sum(e.ours < 0.5 for e in edges)
-    st.markdown('<div class="ed-note"><b>Good value isn\'t the same as likely to win.</b> These picks are teams our '
-                'sims rate higher than Kalshi\'s price, but many are still underdogs: a team Kalshi has at 30% that '
-                'we think is really 40% is a bargain, yet it still loses about 6 times in 10. The value comes from '
-                'the bigger payout on the times it wins, so expect plenty of these to lose, even when the gap is big.'
-                + (f' Right now <b>{dogs} of {len(edges)}</b> picks are underdogs.' if edges else "") + '</div>',
-                unsafe_allow_html=True)
-    if not edges:
-        upcoming = sum(g.state == "pre" for g in games)
-        st.info("Right now our simulations don't rate any team above Kalshi's price. "
-                f"({upcoming} upcoming games checked.) New prices come in all day; this page updates as they do.")
-    else:
-        st.markdown(f'<div class="lv-grid">{"".join(edge_card(e, stake) for e in edges)}</div>',
+                                help="Each card shows exactly what this buys and what you'd get back.")
+    value_tab, model_tab = st.tabs(["Best value", "Where our sims disagree"])
+    with value_tab:
+        picks = bestbets.value_picks(games, ours_for)
+        real = [v for v in picks if v.real]
+        st.markdown('<div class="ed-note"><b>How this works.</b> DraftKings and Kalshi are the best predictors we '
+                    'have: on 700 finished games they beat our own model, and each other by a hair. So the fair '
+                    'chance for every team is their consensus (DraftKings with its cut removed, averaged with '
+                    'Kalshi). A bet is <b>real value</b> when one of them sells it for less than that, by enough to '
+                    'beat the fees: +2% expected return or more. In our backtest those bets made money; smaller gaps '
+                    'lost to fees. Real value is rare, because the two markets usually agree.</div>',
                     unsafe_allow_html=True)
-    st.caption(f"Updated {fetched.astimezone(ET):%I:%M %p} ET. Each game is played 1,000,000 times by our model, "
-               "which rates every team from this season's results (who it played and by how much) plus home "
-               "advantage, and nothing else; Kalshi's price reflects everything the market knows (injuries, lineups, "
-               "form). So a gap can mean value, or that the market knows something results can't show. Teams with "
-               "fewer than 8 games played are left out, and so are games where we're more than 25 points away from "
-               "both Kalshi and DraftKings (that's our blind spot, not an edge). For information "
-               "only, not betting advice. Must be 21+; if gambling stops being fun, call 1-800-GAMBLER.")
+        if real:
+            st.success(f"**{len(real)} real value bet{'s' if len(real) != 1 else ''} right now.**")
+        else:
+            st.info("**No real value right now.** DraftKings and Kalshi agree, within their fees, on every game. "
+                    "Below are the bets closest to fair; none is expected to make money. New prices come in all day "
+                    "and this page updates as they do.")
+        if picks:
+            st.markdown(f'<div class="lv-grid">{"".join(value_card(v, stake) for v in picks)}</div>',
+                        unsafe_allow_html=True)
+        st.caption(f"Updated {fetched.astimezone(ET):%I:%M %p} ET. Fair chances need both DraftKings and Kalshi to "
+                   "price the game. In hockey our model is mixed in a little (it helped there in testing). For "
+                   "information only, not betting advice. Must be 21+; if gambling stops being fun, call "
+                   "1-800-GAMBLER.")
+    with model_tab:
+        st.markdown('<div class="ed-note"><b>Opinions, not bets.</b> These are the teams our own simulation rates '
+                    'higher than Kalshi. In testing on 700 finished games the market was more accurate than our model '
+                    'in football, basketball and soccer, so most of these gaps are our model missing something. '
+                    'They\'re here to show what the numbers alone say; see the Best value tab for actual bets.</div>',
+                    unsafe_allow_html=True)
+        edges = bestbets.model_edges(games, ours_for)
+        dogs = sum(e.ours < 0.5 for e in edges)
+        st.markdown('<div class="ed-note"><b>Good value isn\'t the same as likely to win.</b> These picks are teams our '
+                    'sims rate higher than Kalshi\'s price, but many are still underdogs: a team Kalshi has at 30% that '
+                    'we think is really 40% is a bargain, yet it still loses about 6 times in 10. The value comes from '
+                    'the bigger payout on the times it wins, so expect plenty of these to lose, even when the gap is big.'
+                    + (f' Right now <b>{dogs} of {len(edges)}</b> picks are underdogs.' if edges else "") + '</div>',
+                    unsafe_allow_html=True)
+        if not edges:
+            upcoming = sum(g.state == "pre" for g in games)
+            st.info("Right now our simulations don't rate any team above Kalshi's price. "
+                    f"({upcoming} upcoming games checked.) New prices come in all day; this page updates as they do.")
+        else:
+            st.markdown(f'<div class="lv-grid">{"".join(edge_card(e, stake) for e in edges)}</div>',
+                        unsafe_allow_html=True)
+        st.caption(f"Updated {fetched.astimezone(ET):%I:%M %p} ET. Each game is played 1,000,000 times by our model, "
+                   "which rates every team from this season's results (who it played and by how much) plus home "
+                   "advantage, and nothing else; Kalshi's price reflects everything the market knows (injuries, lineups, "
+                   "form). So a gap can mean value, or that the market knows something results can't show. Teams with "
+                   "fewer than 8 games played are left out, and so are games where we're more than 25 points away from "
+                   "both Kalshi and DraftKings (that's our blind spot, not an edge). For information "
+                   "only, not betting advice. Must be 21+; if gambling stops being fun, call 1-800-GAMBLER.")
+

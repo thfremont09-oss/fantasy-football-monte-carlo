@@ -212,7 +212,7 @@ def front(all_stories: list[news.Story]) -> str:
 def tools() -> str:
     items = [
         ("#1f6feb", "Live Odds", "live", "Every game today with DraftKings, Kalshi and our own odds."),
-        ("#5b3cc4", "Best Bets", "bets", "Prices that look too generous, and exactly what you'd win."),
+        ("#5b3cc4", "Best Bets", "bets", "Bets priced below their fair chance, and when there aren't any."),
         ("#0b6e4f", "Player Stats", "players", "Any player's season, career and last game, plus fun facts."),
         ("#2e7d3a", "NFL Lineups", "football", "Who to start in your ESPN league this week."),
         ("#1d428a", "NBA Fantasy", "nba-fantasy", "Today's lineup and your chance to win the week."),

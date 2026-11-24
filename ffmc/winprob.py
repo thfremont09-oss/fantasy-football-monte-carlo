@@ -122,19 +122,25 @@ def rated_margin(g) -> tuple[float, float] | None:
     return m, r.resid_sd
 
 
+def outcome_sd(league: str) -> float | None:
+    """How widely real results spread around our expected margin (tuned by backtest; see tools/tune_ratings.py)."""
+    from . import ratings
+    return (ratings.TUNED.get(league) or {}).get("sd")
+
+
 def _pre_from_ratings(g, fallback_sd: float) -> float | None:
     rm = rated_margin(g)
     if rm is None:
         return None
     m, sd = rm
-    return NormalDist().cdf(m / max(sd, fallback_sd * 0.5))
+    return NormalDist().cdf(m / (outcome_sd(g.league) or max(sd, fallback_sd * 0.5)))
 
 
 def margin_sport(g, rng, n: int) -> OwnOdds:
     sd, periods, length, edge, shrink = MARGIN[g.league]
     away, home = g.sides
     rm = rated_margin(g)
-    pre = NormalDist().cdf(rm[0] / sd) if rm else \
+    pre = NormalDist().cdf(rm[0] / (outcome_sd(g.league) or sd)) if rm else \
         _sigmoid(_strength(home.record, shrink) - _strength(away.record, shrink) + edge)
     full = periods * length
     if g.state == "in":

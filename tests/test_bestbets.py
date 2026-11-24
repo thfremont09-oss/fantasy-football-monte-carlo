@@ -97,3 +97,30 @@ def test_model_edges_skip_short_records_and_started_games():
     live_now = game(150, -180, 0.40, 0.60, ask_away=0.41, ask_home=0.61, rec=("10-3", "6-7"))
     live_now.state = "in"
     assert bestbets.model_edges([live_now], ours) == []
+
+
+def _game2(dk_away, dk_home, k_away, k_home, ask_away, ask_home, sport="Basketball"):
+    start = dt.datetime(2026, 11, 25, 0, tzinfo=dt.timezone.utc)
+    sides = [live.Side("Away", "AWY", dk=dk_away, kalshi=k_away, kalshi_ask=ask_away),
+             live.Side("Home", "HOM", dk=dk_home, kalshi=k_home, kalshi_ask=ask_home)]
+    return live.Game("v1", sport, "NBA", start, "pre", "", sides)
+
+
+def test_fair_chance_is_the_market_consensus():
+    g = _game2(150, -170, 0.40, 0.60, 0.41, 0.61)
+    fair = bestbets.fair_chance(g, 0, ours=0.9)          # our model gets no weight outside hockey
+    dk = g.dk_fair()[0]
+    assert abs(fair - (dk + 0.40) / 2) < 1e-9
+
+
+def test_value_picks_find_a_cheap_price_and_count_fees():
+    # Both markets agree the away side is ~40%, but Kalshi sells it at 30¢: real value on Kalshi.
+    g = _game2(150, -170, 0.40, 0.60, 0.30, 0.71)
+    picks = bestbets.value_picks([g], lambda _g: None)
+    best = picks[0]
+    assert best.side.name == "Away" and best.book == "Kalshi" and best.real
+    cost = 0.30 + bestbets.KALSHI_FEE * 0.30 * 0.70
+    assert abs(best.ev - (best.fair / cost - 1)) < 1e-9
+    # A fair price with no gap isn't real value
+    g2 = _game2(150, -170, 0.40, 0.60, 0.41, 0.61)
+    assert not any(v.real for v in bestbets.value_picks([g2], lambda _g: None))

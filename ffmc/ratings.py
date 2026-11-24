@@ -48,6 +48,19 @@ CFB_WEEKS = 17
 HALF_LIFE_DAYS = 60
 MIN_GAMES = 4                     # a team needs this many results to be rated
 
+# Tuned by tools/tune_ratings.py (rolling backtest: each week predicted only from the games before it).
+# "sd" turns an expected margin into a win chance: P(home wins) = Phi(margin / sd).
+# Tuned 2026-11-24 on the last 6 weeks (test games in brackets); WNBA and MLB were in their off-seasons with too
+# few games, so they keep the defaults above. Soccer is tuned once across all leagues together.
+TUNED: dict[str, dict] = {
+    "NFL": {"cap": 40, "prior": 2.0, "home_edge": 0.75, "half_life": 35, "sd": 11.2},                   # (84)
+    "College Football": {"cap": 35, "prior": 1.5, "home_edge": 2.5, "half_life": 120, "sd": 17.26},    # (725)
+    "NBA": {"cap": 20, "prior": 8.0, "home_edge": 1.875, "half_life": 365, "sd": 12.68},               # (248)
+    "Men's College Basketball": {"cap": 40, "prior": 1.0, "home_edge": 4.5, "half_life": 120, "sd": 16.64},  # (218)
+    "NHL": {"cap": 4, "prior": 20.0, "home_edge": 0.075, "half_life": 730, "sd": 2.19},                # (291)
+    "Soccer": {"cap": 4, "prior": 5.0, "home_edge": 0.225, "half_life": 120},                           # (765)
+}
+
 
 @dataclass
 class TeamNote:
@@ -216,8 +229,17 @@ def lower_tier(name: str, games: list[tuple], http: CachedJSON | None = None) ->
     return set()
 
 
-def fit(name: str, games: list[tuple], as_of: dt.date, tier: set[str] | None = None) -> Ratings | None:
+def params(name: str) -> dict:
+    """Settings for a league: tuned values (tools/tune_ratings.py) over the hand-picked defaults."""
     cap, prior, _, _, home_edge = SETUP.get(name, SOCCER)
+    base = {"cap": cap, "prior": prior, "home_edge": home_edge, "half_life": HALF_LIFE_DAYS}
+    tuned = TUNED.get(name) or (TUNED.get("Soccer") if name not in SETUP else None) or {}
+    return {**base, **{k: v for k, v in tuned.items() if k in base}}
+
+
+def fit(name: str, games: list[tuple], as_of: dt.date, tier: set[str] | None = None, **override) -> Ratings | None:
+    s = {**params(name), **override}
+    cap, prior, home_edge, half_life = s["cap"], s["prior"], s["home_edge"], s["half_life"]
     if len(games) < 10:
         return None
     teams = sorted({g[1] for g in games} | {g[2] for g in games})
@@ -234,7 +256,7 @@ def fit(name: str, games: list[tuple], as_of: dt.date, tier: set[str] | None = N
         # size of the blowout is exactly what tells us how far apart the levels are
         m = hs - as_ - (0.0 if neutral else home_edge)
         y[r] = m if (home in tier) != (away in tier) else np.clip(m, -cap, cap)
-        w[r] = 0.5 ** ((as_of - when).days / HALF_LIFE_DAYS)
+        w[r] = 0.5 ** ((as_of - when).days / half_life)
     # ridge: like every team also playing `prior` games against an average team
     reg = np.full(k + 1, prior * float(w.mean()))
     reg[k] = 1e-6

@@ -43,6 +43,8 @@ class GradedPick:
     won: bool
     profit: float          # on a $10 stake (whole contracts plus fee)
     score: str
+    book: str = "Kalshi"   # where the bet was placed
+    ev: float = 0.0        # expected return when it was picked (best-value picks)
 
 
 @dataclass
@@ -252,6 +254,91 @@ def bets_record(days: int = 5, per_day: int = 12, cache_dir=".ffmc_cache", now: 
     with _FAILS_LOCK:
         record.failures = _FAILS["count"] - failed_before
     return record
+
+
+# ------------------------------------------------------------ best value
+def _closing_moneylines(http: CachedJSON, g: live.Game) -> tuple[float, float] | None:
+    """(away, home) DraftKings closing moneylines from ESPN's game summary (kept after the game ends)."""
+    try:
+        s = _get(http, f"https://site.api.espn.com/apis/site/v2/sports/{g.path}/summary", [("event", g.event_id)],
+                 ttl=LONG)
+    except APIError:
+        return None
+    for pc in s.get("pickcenter") or []:
+        a = (pc.get("awayTeamOdds") or {}).get("moneyLine")
+        h = (pc.get("homeTeamOdds") or {}).get("moneyLine")
+        if a is not None and h is not None:
+            return float(a), float(h)
+    return None
+
+
+def value_record(days: int = 7, per_day: int = 12, cache_dir=".ffmc_cache", now: dt.datetime | None = None
+                 ) -> BetsRecord:
+    """Replay Best value on finished games: DraftKings' closing line and Kalshi's last price before the start give
+    the fair chance; every side priced at least 2% below it (after fees) is a pick, graded on the final score."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    http = CachedJSON(cache_dir)
+    today = now.astimezone(ET).date()
+    span = [today - dt.timedelta(k) for k in range(1, days + 1)]
+    leagues = [l for l in live.LEAGUES if l[0] not in ("Tennis", "MMA", "Soccer")]   # two-way markets
+    with _FAILS_LOCK:
+        failed_before = _FAILS["count"]
+    with ThreadPoolExecutor(4) as pool:
+        found = list(pool.map(lambda j: (j[0], _finished_games(http, j[0], j[1], today)),
+                              [(lg, d) for lg in leagues for d in span]))
+    by: dict[tuple, list[live.Game]] = {}
+    for lg, gs in found:
+        by.setdefault(lg, []).extend(gs)
+    games = []
+    for lg, gs in by.items():
+        gs = list({g.key: g for g in gs}.values())
+        att = [copy.deepcopy(g) for g in gs]
+        live.attach_kalshi(att, _settled_markets(http, lg[3], now - dt.timedelta(days=days + 2)), lg[3])
+        games += [g for g in att if len(g.sides) == 2 and all(s.kalshi_ticker for s in g.sides)]
+
+    def gather(g):
+        ml = _closing_moneylines(http, g)
+        if not ml:
+            return None
+        prices = [_price_before(http, g.kalshi_series, s.kalshi_ticker, g.start) for s in g.sides]
+        return (g, ml, prices) if all(prices) else None
+    with ThreadPoolExecutor(3) as pool:
+        rows = [r for r in pool.map(gather, games) if r]
+
+    rec = BetsRecord(days=days)
+    by_day: dict[dt.date, list] = {}
+    for g, ml, prices in rows:
+        rec.games_checked += 1
+        imp = [100 / (x + 100) if x > 0 else -x / (-x + 100) for x in ml]
+        dk_fair = [x / sum(imp) for x in imp]
+        for i, s in enumerate(g.sides):
+            mid, ask = prices[i]
+            fair = (dk_fair[i] + mid) / 2
+            opts = []
+            if 0.02 <= ask <= 0.98:
+                cost = ask + bestbets.KALSHI_FEE * ask * (1 - ask)
+                opts.append((fair / cost - 1, "Kalshi", ask, None))
+            d = 1 + (ml[i] / 100 if ml[i] > 0 else 100 / -ml[i])
+            opts.append((fair * d - 1, "DraftKings", 1 / d, int(ml[i])))
+            ev, book, price, american = max(opts, key=lambda o: o[0])
+            if ev >= bestbets.REAL_VALUE and bestbets.FAIR_RANGE[0] <= fair <= bestbets.FAIR_RANGE[1]:
+                by_day.setdefault(g.start.astimezone(ET).date(), []).append((ev, g, i, s, fair, mid, price, book,
+                                                                              american))
+    for day, picks in sorted(by_day.items()):
+        for ev, g, i, s, fair, mid, price, book, american in sorted(picks, key=lambda x: -x[0])[:per_day]:
+            bet = bestbets.Bet(g, s.name, book, "", 1 / price, price, fair, american=american,
+                               ask=price if book == "Kalshi" else None)
+            t = bestbets.ticket(bet, 10.0)
+            won = bool(s.winner)
+            spent = t.spent if t.spent else 10.0
+            rec.picks.append(GradedPick(
+                day=day, league=g.league, pick=s.name, opponent=g.sides[1 - i].name, ours=fair, kalshi=mid,
+                ask=price, won=won, profit=t.profit if won else -spent,
+                score=f"{g.sides[0].short} {g.sides[0].score}, {g.sides[1].short} {g.sides[1].score}",
+                book=book, ev=ev))
+    with _FAILS_LOCK:
+        rec.failures = _FAILS["count"] - failed_before
+    return rec
 
 
 # --------------------------------------------------------------------- F1

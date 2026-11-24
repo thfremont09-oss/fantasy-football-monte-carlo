@@ -24,12 +24,6 @@ def money(x: float) -> str:
 
 
 @st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
-def value(day: str) -> record.BetsRecord:
-    with heavy():
-        return record.value_record(days=7)
-
-
-@st.cache_data(ttl=6 * 3600, max_entries=3, show_spinner=False)
 def bets(day: str) -> record.BetsRecord:
     with heavy():                       # one big job at a time on the 512 MB server
         return record.bets_record(days=7)
@@ -78,9 +72,6 @@ banner("lab", "How it has done",
 
 with st.spinner("Replaying the last week of games and grading every pick... (about a minute the first time today)"):
     b = bets(TODAY)
-    v = value(TODAY)
-    if v.failures:
-        value.clear()
     if b.failures:
         # Some data couldn't be fetched even after retries: show what we have, but don't keep it cached, and
         # say so, so a partial week is never passed off as the whole one.
@@ -231,31 +222,10 @@ else:
 # -------------------------------------------------------------- Best Bets
 st.markdown('<div id="bets"></div>', unsafe_allow_html=True)
 st.header("Best Bets")
-st.subheader("Best value (market prices)")
-st.markdown('<p class="rec-how">The Best value tab, replayed on every finished game of the last week: DraftKings\' '
-            'closing line (its cut removed) and Kalshi\'s last price before the start give each team\'s fair chance, '
-            'and a pick is any side one of them sold for at least 2% below it after fees.</p>', unsafe_allow_html=True)
-if v.picks:
-    vroi = v.profit / v.staked if v.staked else 0
-    st.markdown(f'<p class="rec-say"><b>{v.hits} of {len(v.picks)}</b> best-value picks won (the fair chances said '
-                f'{v.expected_by_us:.1f}). At $10 each: {"+" if v.profit >= 0 else "−"}${abs(v.profit):,.2f} '
-                f'({vroi * 100:+.0f}%).</p>', unsafe_allow_html=True)
-    st.dataframe(pd.DataFrame([{"Day": p.day.strftime("%a %b %d"), "League": p.league, "Pick": p.pick,
-                                "vs": p.opponent, "Where": p.book, "Fair chance": p.ours * 100,
-                                "Expected return": p.ev * 100, "Result": "Won" if p.won else "Lost",
-                                "Profit ($10)": money(p.profit), "Final": p.score} for p in v.picks]),
-                 hide_index=True, width="stretch",
-                 column_config={"Fair chance": st.column_config.NumberColumn(format="%.0f%%"),
-                                "Expected return": st.column_config.NumberColumn(format="%+.1f%%")})
-else:
-    st.markdown(f'<p class="rec-say">No bet met the bar this week. In {v.games_checked} games DraftKings and Kalshi '
-                f'never disagreed by enough to beat the fees, which is normal: the two markets are efficient, and real '
-                f'value is rare.</p>', unsafe_allow_html=True)
-st.subheader("Our sims vs Kalshi (opinions, not bets)")
 st.markdown('<p class="rec-how">For every finished game of the last week: each team\'s record is rolled back to '
             'before the game, Kalshi\'s price is taken from an hour before kick-off, our simulation plays the game '
             'a million times, and we keep the teams it rated higher than Kalshi (up to 12 a day, biggest gap '
-            'first), exactly as the "Where our sims disagree" tab does. Then each pick is graded on the final score, with the '
+            'first), exactly as the Best Bets page does. Then each pick is graded on the final score, with the '
             'real Kalshi payout for a $10 bet (whole contracts, fee included).</p>', unsafe_allow_html=True)
 if top10:
     won = sum(p.won for p in top10)

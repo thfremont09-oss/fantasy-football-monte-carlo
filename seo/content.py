@@ -50,14 +50,14 @@ PAGES: list[Page] = [
           "Search any team for its latest score and next game",
           "Schedules up to a week ahead for every league"],
          ["how-to-read-moneyline-odds", "kalshi-vs-draftkings", "point-spread-and-over-under-explained"], "Live odds"),
-    Page("bets", "Best Bets Today: Value vs DraftKings & Kalshi | Monte Sports Lab",
-         "Today's best bets: sides DraftKings or Kalshi price below the market's own fair chance, with the expected "
-         "return after fees and the exact payout for your stake.",
+    Page("bets", "Best Bets Today: Our Picks vs Kalshi | Monte Sports Lab",
+         "Today's best bets: teams our 1,000,000-game simulations rate higher than the Kalshi price, biggest gap "
+         "first, with the exact payout for your stake.",
          "Best bets today",
-         "Every game that hasn't started, priced two ways. DraftKings (cut removed) and Kalshi together set each "
-         "team's fair chance; a bet is real value when one of them sells it for less, by enough to beat the fees. "
-         "We say so plainly when there isn't any, and show where our own simulation disagrees.",
-         ["Fair chance from DraftKings and Kalshi together",
+         "Every game that hasn't started yet, simulated a million times and compared with what Kalshi charges. The "
+         "teams where our chance is furthest above the price come first, with exactly what you'd get back for your "
+         "stake after fees. Good value isn't the same as likely to win: many of these are underdogs.",
+         ["Our simulated win chance next to the Kalshi price",
           "Exact payout for your stake, fees included",
           "DraftKings moneyline, spread and total for comparison",
           "Graded every day on the public track record"],
